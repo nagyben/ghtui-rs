@@ -1,0 +1,22 @@
+query {
+  search(query: "is:pr involves:nagyben state:open", type: ISSUE, first: 100) {
+    edges {
+      node {
+        ... on PullRequest {
+          number
+          title
+          repository {
+            nameWithOwner
+          }
+          createdAt
+          updatedAt
+          url
+          changedFiles
+
+          additions
+          deletions
+        }
+      }
+    }
+  }
+}
