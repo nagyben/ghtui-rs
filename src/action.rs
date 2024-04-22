@@ -6,6 +6,8 @@ use serde::{
 };
 use strum::Display;
 
+use crate::components::pull_request::PullRequest;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
 pub enum Action {
     Tick,
@@ -21,4 +23,7 @@ pub enum Action {
     // custom actions
     Up,
     Down,
+    GetReposResult(Vec<PullRequest>),
+    GetRepos,
+    Enter,
 }

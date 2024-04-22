@@ -1,0 +1,39 @@
+query PullRequestsQuery {
+  search($query: String!, type: ISSUE, $first: Int!) {
+    edges {
+      node {
+        __typename
+        ... on PullRequest {
+          number
+          title
+          repository {
+            nameWithOwner
+          }
+          createdAt
+          updatedAt
+          url
+          changedFiles
+          additions
+          deletions
+          latestReviews(last: 10) {
+            edges {
+              node {
+                author {
+                  __typename
+                  login
+                }
+              }
+            }
+          }
+          participants(last: 10) {
+            edges {
+              node {
+                login
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

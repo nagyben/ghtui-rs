@@ -7,6 +7,10 @@
       "<Ctrl-z>": "Suspend", // Suspend the application
       "j": "Down", // Move down
       "k": "Up", // Move up
+      "down": "Down", // Move down
+      "up": "Up", // Move up
+      "r": "GetRepos", // Refresh the list of repositories
+      "enter": "Enter"
     },
   }
 }

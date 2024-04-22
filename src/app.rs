@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, home::Home, keystrokes::Keystrokes, repo_list::RepoList, Component},
+    components::{fps::FpsCounter, home::Home, keystrokes::Keystrokes, repo_list::PullRequestList, Component},
     config::Config,
     mode::Mode,
     tui,
@@ -26,14 +26,14 @@ pub struct App {
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
         let home = Home::new();
+        let pr_list = PullRequestList::default();
         let keystrokes = Keystrokes::default();
-        let file_list = RepoList::default();
         let config = Config::new()?;
         let mode = Mode::Normal;
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(home), Box::new(keystrokes), Box::new(file_list)],
+            components: vec![Box::new(home), Box::new(keystrokes), Box::new(pr_list)],
             should_quit: false,
             should_suspend: false,
             config,
