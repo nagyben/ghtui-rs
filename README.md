@@ -10,7 +10,7 @@ A GitHub TUI
 2. Download the Github GraphQL schema to `src/github/schema.graphql` by running the following command:
 
     ```sh
-    curl -L https://docs.github.com/public/fpt/schema.docs.graphql -o src/github/github_schema.graphql
+    curl -L https://docs.github.com/public/fpt/schema.docs.graphql -o src/github/schema.graphql
     ```
 
 3. Generate a PAT token with read access to repos and pull requests
