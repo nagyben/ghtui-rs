@@ -14,11 +14,13 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::pull_request;
+use super::pull_request::{self, pull_requests_query::PullRequestState};
 use crate::{
     action::Action,
     components::{
-        pull_request::{pull_requests_query, PullRequest, PullRequestsQuery},
+        pull_request::{
+            pull_requests_query, pull_requests_query::PullRequestReviewState, PullRequest, PullRequestsQuery,
+        },
         Component, Frame,
     },
     config::{Config, KeyBindings},
@@ -30,6 +32,7 @@ pub struct PullRequestList {
     config: Config,
     selected_row: usize,
     pull_requests: Vec<PullRequest>,
+    username: String,
 }
 
 impl PullRequestList {
@@ -42,10 +45,30 @@ impl PullRequestList {
         tokio::spawn(async move {
             let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");
             let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
-            let response: octocrab::Result<graphql_client::Response<pull_requests_query::ResponseData>> =
-                oc.graphql(&PullRequestsQuery::build_query(pull_requests_query::Variables {})).await;
+            log::info!("Fetching pull requests");
+            let response: serde_json::Value = oc
+                .graphql(&serde_json::json!({ "query": "{ viewer { login }}" }))
+                .await
+                .unwrap_or(serde_json::Value::Null);
+
+            if let serde_json::Value::Null = response {
+                tx.send(Action::Error("Failed to get current user".to_string())).unwrap();
+                return;
+            }
+
+            let username = response["data"]["viewer"]["login"].as_str().unwrap();
+
+            log::info!("{}", username);
+
+            let response: octocrab::Result<graphql_client::Response<pull_requests_query::ResponseData>> = oc
+                .graphql(&PullRequestsQuery::build_query(pull_requests_query::Variables {
+                    first: 10,
+                    query: format!("is:pr involves:{} state:open", username),
+                }))
+                .await;
             match response {
                 Ok(response) => {
+                    log::info!("{:#?}", response);
                     let r = response.data.unwrap().search.edges.unwrap();
                     let pull_requests: Vec<PullRequest> = r
                         .iter()
@@ -122,16 +145,48 @@ impl Component for PullRequestList {
                         Span::styled(format!("{:+}", pr.additions), Style::new().fg(Color::LightGreen)),
                         Span::styled(format!("{:+}", (0 - pr.deletions as isize)), Style::new().fg(Color::LightRed)),
                     ])),
+                    Cell::from(match pr.state {
+                        pull_requests_query::PullRequestState::OPEN => {
+                            if pr.is_draft {
+                                "DRAFT"
+                            } else {
+                                "OPEN"
+                            }
+                        },
+                        _ => "Unknown",
+                    }),
+                    Cell::from(Line::from(
+                        pr.reviews
+                            .iter()
+                            .map(|prr| {
+                                vec![
+                                    Span::styled(prr.author.clone(), match prr.state {
+                                        PullRequestReviewState::COMMENTED => Style::new().fg(Color::LightBlue),
+                                        PullRequestReviewState::APPROVED => Style::new().fg(Color::LightGreen),
+                                        PullRequestReviewState::CHANGES_REQUESTED => {
+                                            Style::new().fg(Color::LightYellow)
+                                        },
+                                        _ => Style::new().fg(Color::Gray),
+                                    }),
+                                    Span::raw(" "),
+                                ]
+                            })
+                            .flatten()
+                            .collect::<Vec<Span>>(),
+                    )),
                 ])
             })
             .collect::<Vec<_>>();
         let mut table_state = TableState::default();
         table_state.select(Some(self.selected_row));
         let table = Table::default()
-            .widths(Constraint::from_lengths([4, 30, 60, 20, 20, 6, 6]))
+            .widths(Constraint::from_lengths([4, 40, 80, 20, 20, 6, 6, 50]))
             .rows(rows)
             .column_spacing(1)
-            .header(Row::new(vec!["#", "Title", "Repository", "Created", "Updated"]).bottom_margin(1))
+            .header(
+                Row::new(vec!["#", "Repository", "Title", "Created", "Updated", "Changes", "State", "Reviews"])
+                    .bottom_margin(1),
+            )
             .block(
                 Block::default()
                     .title(Title::from("Pull Requests"))

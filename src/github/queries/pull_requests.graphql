@@ -1,5 +1,5 @@
-query PullRequestsQuery {
-  search($query: String!, type: ISSUE, $first: Int!) {
+query PullRequestsQuery($query: String!, $first: Int!) {
+  search(type: ISSUE, query: $query, first: $first) {
     edges {
       node {
         __typename
@@ -15,9 +15,12 @@ query PullRequestsQuery {
           changedFiles
           additions
           deletions
+          state
+          isDraft
           latestReviews(last: 10) {
             edges {
               node {
+                state
                 author {
                   __typename
                   login
