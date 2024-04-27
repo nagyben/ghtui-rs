@@ -8,7 +8,7 @@ use tracing::{debug, info};
 use crate::{
     action::Action,
     components::{
-        fps::FpsCounter, home::Home, info_overlay::InfoOverlay, keystrokes::Keystrokes,
+        fps::FpsCounter, home::Home, keystrokes::Keystrokes, pull_request_info_overlay::PullRequestInfoOverlay,
         pull_request_list::PullRequestList, Component,
     },
     config::Config,

@@ -32,6 +32,9 @@ pub struct PullRequest {
     pub is_draft: bool,
     pub reviews: Vec<PullRequestReview>,
     pub author: String,
+    pub base_branch: String,
+    pub body: String,
+    pub comments: Vec<PullRequestComment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +73,17 @@ impl From<&PullRequestsQuerySearchEdgesNodeOnPullRequest> for PullRequest {
                     }
                 })
                 .collect(),
+
+            base_branch: value.base_ref_name.clone(),
+            body: value.body.clone(),
+            comments: vec![],
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PullRequestComment {
+    author: String,
+    body: String,
+    created_at: DateTime,
 }

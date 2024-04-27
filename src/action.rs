@@ -25,6 +25,11 @@ pub enum Action {
     Up,
     Down,
     Enter,
+    Open,
+    Escape,
+    Back,
+    PageDn,
+    PageUp,
 
     // custom actions for fetching data
     GetRepos,

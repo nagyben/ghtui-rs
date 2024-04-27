@@ -21,8 +21,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
 use super::{
-    info_overlay::InfoOverlay,
     pull_request::{self, pull_requests_query::PullRequestState},
+    pull_request_info_overlay::PullRequestInfoOverlay,
+    utils::centered_rect,
 };
 use crate::{
     action::Action,
@@ -41,10 +42,10 @@ pub struct PullRequestList {
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
     selected_row: usize,
-    pull_requests: Vec<PullRequest>,
+    pull_requests: Option<Vec<PullRequest>>,
     username: String,
     show_info_overlay: bool,
-    info_overlay: InfoOverlay,
+    info_overlay: PullRequestInfoOverlay,
 }
 
 impl PullRequestList {
@@ -115,52 +116,57 @@ impl PullRequestList {
     }
 
     fn render_pull_requests_table(&mut self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
-        let rows = self
-            .pull_requests
-            .iter()
-            .map(|pr: &PullRequest| {
-                Row::new(vec![
-                    Cell::from(format!("{:}", pr.number)),
-                    Cell::from(pr.repository.clone()),
-                    Cell::from(pr.title.clone()),
-                    Cell::from(pr.author.clone()),
-                    Cell::from(format!("{}", pr.created_at.format("%Y-%m-%d %H:%M"))),
-                    Cell::from(format!("{}", pr.updated_at.format("%Y-%m-%d %H:%M"))),
-                    Cell::from(Line::from(vec![
-                        Span::styled(format!("{:+}", pr.additions), Style::new().fg(Color::LightGreen)),
-                        Span::styled(format!("{:+}", (0 - pr.deletions as isize)), Style::new().fg(Color::LightRed)),
-                    ])),
-                    Cell::from(match pr.state {
-                        pull_requests_query::PullRequestState::OPEN => {
-                            if pr.is_draft {
-                                "DRAFT"
-                            } else {
-                                "OPEN"
-                            }
-                        },
-                        _ => "Unknown",
-                    }),
-                    Cell::from(Line::from(
-                        pr.reviews
-                            .iter()
-                            .flat_map(|prr| {
-                                vec![
-                                    Span::styled(prr.author.clone(), match prr.state {
-                                        PullRequestReviewState::COMMENTED => Style::new().fg(Color::LightBlue),
-                                        PullRequestReviewState::APPROVED => Style::new().fg(Color::LightGreen),
-                                        PullRequestReviewState::CHANGES_REQUESTED => {
-                                            Style::new().fg(Color::LightYellow)
-                                        },
-                                        _ => Style::new().fg(Color::Gray),
-                                    }),
-                                    Span::raw(" "),
-                                ]
-                            })
-                            .collect::<Vec<Span>>(),
-                    )),
-                ])
-            })
-            .collect::<Vec<_>>();
+        let mut rows: Vec<Row<'static>> = vec![];
+        if let Some(pull_requests) = &self.pull_requests {
+            rows = pull_requests
+                .iter()
+                .map(|pr: &PullRequest| {
+                    Row::new(vec![
+                        Cell::from(format!("{:}", pr.number)),
+                        Cell::from(pr.repository.clone()),
+                        Cell::from(pr.title.clone()),
+                        Cell::from(pr.author.clone()),
+                        Cell::from(format!("{}", pr.created_at.format("%Y-%m-%d %H:%M"))),
+                        Cell::from(format!("{}", pr.updated_at.format("%Y-%m-%d %H:%M"))),
+                        Cell::from(Line::from(vec![
+                            Span::styled(format!("{:+}", pr.additions), Style::new().fg(Color::LightGreen)),
+                            Span::styled(
+                                format!("{:+}", (0 - pr.deletions as isize)),
+                                Style::new().fg(Color::LightRed),
+                            ),
+                        ])),
+                        Cell::from(match pr.state {
+                            pull_requests_query::PullRequestState::OPEN => {
+                                if pr.is_draft {
+                                    "DRAFT"
+                                } else {
+                                    "OPEN"
+                                }
+                            },
+                            _ => "Unknown",
+                        }),
+                        Cell::from(Line::from(
+                            pr.reviews
+                                .iter()
+                                .flat_map(|prr| {
+                                    vec![
+                                        Span::styled(prr.author.clone(), match prr.state {
+                                            PullRequestReviewState::COMMENTED => Style::new().fg(Color::LightBlue),
+                                            PullRequestReviewState::APPROVED => Style::new().fg(Color::LightGreen),
+                                            PullRequestReviewState::CHANGES_REQUESTED => {
+                                                Style::new().fg(Color::LightYellow)
+                                            },
+                                            _ => Style::new().fg(Color::Gray),
+                                        }),
+                                        Span::raw(" "),
+                                    ]
+                                })
+                                .collect::<Vec<Span>>(),
+                        )),
+                    ])
+                })
+                .collect::<Vec<_>>();
+        }
         let mut table_state = TableState::default();
         table_state.select(Some(self.selected_row));
         let table = Table::default()
@@ -192,6 +198,15 @@ impl PullRequestList {
 
         f.render_stateful_widget(table, area, &mut table_state);
     }
+
+    fn render_placeholder(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
+        // TODO: get the key bindings from the config
+        let text = Paragraph::new("Press 'R' to refresh")
+            .style(Style::default().fg(Color::White))
+            .alignment(Alignment::Center);
+
+        f.render_widget(text, centered_rect(area, 100, 10))
+    }
 }
 
 impl Component for PullRequestList {
@@ -206,7 +221,9 @@ impl Component for PullRequestList {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        if !self.show_info_overlay {
+        if self.show_info_overlay {
+            self.info_overlay.update(action.clone())?;
+        } else {
             match &action {
                 Action::Tick => {},
                 Action::Up => {
@@ -214,46 +231,58 @@ impl Component for PullRequestList {
                     return Ok(Some(Action::Render));
                 },
                 Action::Down => {
-                    self.selected_row = std::cmp::min(self.selected_row + 1, self.pull_requests.len() - 1);
-                    return Ok(Some(Action::Render));
+                    if let Some(pull_requests) = &self.pull_requests {
+                        self.selected_row = std::cmp::min(self.selected_row + 1, pull_requests.len() - 1);
+                        return Ok(Some(Action::Render));
+                    }
                 },
                 Action::GetRepos => {
                     self.fetch_repos()?;
                 },
                 Action::GetReposResult(pull_requests) => {
-                    self.pull_requests = pull_requests.clone();
+                    self.pull_requests = Some(pull_requests.clone());
                 },
-                Action::Enter => {
-                    if let Some(pr) = self.pull_requests.get(self.selected_row) {
-                        let url = pr.url.clone();
-                        let _ = open::that(url);
+                Action::Open => {
+                    if let Some(pull_requests) = &self.pull_requests {
+                        if let Some(pr) = pull_requests.get(self.selected_row) {
+                            let url = pr.url.clone();
+                            let _ = open::that(url);
+                        }
                     }
                 },
                 Action::GetCurrentUser => {
-                    self.get_current_user();
+                    let _ = self.get_current_user();
                 },
-                Action::GetCurrentUserResult(user) => self.username = user.clone(),
+                Action::GetCurrentUserResult(user) => self.username.clone_from(user),
                 _ => {},
             }
         }
+
         match action {
-            Action::Info => {
-                if let Some(pr) = self.pull_requests.get(self.selected_row) {
-                    self.info_overlay = InfoOverlay::new().with_pull_request(pr.clone());
-                    self.show_info_overlay = !self.show_info_overlay;
+            Action::Enter => {
+                if let Some(pull_requests) = &self.pull_requests {
+                    if let Some(pr) = pull_requests.get(self.selected_row) {
+                        self.info_overlay = PullRequestInfoOverlay::new().with_pull_request(pr.clone());
+                        self.show_info_overlay = !self.show_info_overlay;
+                    }
                 }
             },
-            _ => {},
+            Action::Escape | Action::Back => self.show_info_overlay = false,
+            _ => (),
         }
+
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
         self.render_pull_requests_table(f, area);
-
+        if self.pull_requests.is_none() {
+            self.render_placeholder(f, area);
+        }
         if self.show_info_overlay {
             self.info_overlay.draw(f, area.inner(&Margin::new(4, 4)))?;
         }
+
         Ok(())
     }
 }

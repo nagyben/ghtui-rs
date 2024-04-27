@@ -39,6 +39,19 @@ query PullRequestsQuery($query: String!, $first: Int!) {
               }
             }
           }
+          baseRefName
+          body
+          comments(last: 10) {
+            nodes {
+              author {
+                __typename
+                login
+              }
+              body
+              createdAt
+              updatedAt
+            }
+          }
         }
       }
     }

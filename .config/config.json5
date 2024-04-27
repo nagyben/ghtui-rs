@@ -2,7 +2,6 @@
   "keybindings": {
     "Normal": {
       "<q>": "Quit", // Quit the application
-      "<Ctrl-d>": "Quit", // Another way to quit
       "<Ctrl-c>": "Quit", // Yet another way to quit
       "<Ctrl-z>": "Suspend", // Suspend the application
       "j": "Down", // Move down
@@ -14,6 +13,11 @@
       "i": "Info",
       "h": "Help",
       "?": "Help",
+      "o": "Open",
+      "esc": "Escape",
+      "backspace": "Back",
+      "<Ctrl-up>": "PageUp",
+      "<Ctrl-down>": "PageDn",
     },
   }
 }
