@@ -9,6 +9,10 @@ query PullRequestsQuery($query: String!, $first: Int!) {
           repository {
             nameWithOwner
           }
+          author {
+            __typename
+            login
+          }
           createdAt
           updatedAt
           url

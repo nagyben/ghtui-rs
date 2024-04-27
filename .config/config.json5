@@ -10,7 +10,10 @@
       "down": "Down", // Move down
       "up": "Up", // Move up
       "r": "GetRepos", // Refresh the list of repositories
-      "enter": "Enter"
+      "enter": "Enter",
+      "i": "Info",
+      "h": "Help",
+      "?": "Help",
     },
   }
 }

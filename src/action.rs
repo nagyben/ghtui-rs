@@ -18,12 +18,17 @@ pub enum Action {
     Quit,
     Refresh,
     Error(String),
+    Info,
     Help,
 
     // custom actions
     Up,
     Down,
-    GetReposResult(Vec<PullRequest>),
-    GetRepos,
     Enter,
+
+    // custom actions for fetching data
+    GetRepos,
+    GetReposResult(Vec<PullRequest>),
+    GetCurrentUserResult(String),
+    GetCurrentUser,
 }

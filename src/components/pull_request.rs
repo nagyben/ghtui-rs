@@ -31,6 +31,7 @@ pub struct PullRequest {
     pub state: PullRequestState,
     pub is_draft: bool,
     pub reviews: Vec<PullRequestReview>,
+    pub author: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +45,7 @@ impl From<&PullRequestsQuerySearchEdgesNodeOnPullRequest> for PullRequest {
         Self {
             number: value.number as usize,
             title: value.title.clone(),
+            author: value.author.as_ref().unwrap().login.clone(),
             repository: value.repository.name_with_owner.clone(),
             created_at: value.created_at,
             updated_at: value.updated_at,

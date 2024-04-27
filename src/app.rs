@@ -3,10 +3,14 @@ use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use tracing::{debug, info};
 
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, home::Home, keystrokes::Keystrokes, repo_list::PullRequestList, Component},
+    components::{
+        fps::FpsCounter, home::Home, info_overlay::InfoOverlay, keystrokes::Keystrokes,
+        pull_request_list::PullRequestList, Component,
+    },
     config::Config,
     mode::Mode,
     tui,
@@ -71,7 +75,6 @@ impl App {
                     tui::Event::Key(key) => {
                         if let Some(keymap) = self.config.keybindings.get(&self.mode) {
                             if let Some(action) = keymap.get(&vec![key]) {
-                                log::info!("Got action: {action:?}");
                                 action_tx.send(action.clone())?;
                             } else {
                                 // If the key was not handled as a single key action,
@@ -80,7 +83,6 @@ impl App {
 
                                 // Check for multi-key combinations
                                 if let Some(action) = keymap.get(&self.last_tick_key_events) {
-                                    log::info!("Got action: {action:?}");
                                     action_tx.send(action.clone())?;
                                 }
                             }
