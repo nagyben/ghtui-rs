@@ -93,29 +93,38 @@ impl Component for PullRequestInfoOverlay {
         f.render_widget(block, area);
 
         let layout = layout::Layout::new(Direction::Vertical, [
-            Constraint::Min(1),          // Title
-            Constraint::Length(2),       // Opened by X on Y
+            Constraint::Length(5),       // Header
+            Constraint::Length(1),       // separator
             Constraint::Percentage(100), // body
         ])
         .split(area.inner(&Margin { horizontal: 1, vertical: 1 }));
 
         if let Some(pr) = &self.pull_request {
-            let leader = Paragraph::new(format!("#{} in {}", pr.number, pr.repository))
-                .style(Style::default().fg(Color::White))
-                .alignment(Alignment::Center);
-            let title = Paragraph::new(&*pr.title).style(Style::default().fg(Color::White)).alignment(Alignment::Left);
+            let header = Paragraph::new(vec![
+                Span::styled(format!("#{} in {}", pr.number, pr.repository), Style::default().fg(Color::Gray)).into(),
+                (*pr.title).to_string().into(),
+                format!("Opened by: {} on {}", pr.author, pr.created_at).into(),
+                format!("State: {}", match &pr.state {
+                    PullRequestState::CLOSED => "CLOSED".to_string(),
+                    PullRequestState::MERGED => "MERGED".to_string(),
+                    PullRequestState::OPEN => "OPEN".to_string(),
+                    PullRequestState::Other(state) => state.clone(),
+                })
+                .into(),
+            ])
+            .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Left);
 
-            let opened_by = Paragraph::new(format!("Opened by: {} on {}", pr.author, pr.created_at))
-                .style(Style::default().fg(Color::White))
-                .alignment(Alignment::Left);
+            let horizontal_separator =
+                Paragraph::new("─".repeat(area.width as usize)).style(Style::default().fg(Color::White));
 
             let body = Paragraph::new(&*pr.body)
                 .style(Style::default().fg(Color::White))
                 .alignment(Alignment::Left)
                 .scroll((self.scroll_offset, 0));
 
-            f.render_widget(title, layout[0]);
-            f.render_widget(opened_by, layout[1]);
+            f.render_widget(header, layout[0]);
+            f.render_widget(horizontal_separator, layout[1]);
             f.render_widget(body, layout[2]);
         }
         Ok(())
