@@ -16,8 +16,8 @@
       "o": "Open",
       "esc": "Escape",
       "backspace": "Back",
-      "<Ctrl-up>": "PageUp",
-      "<Ctrl-down>": "PageDn",
+      "<Ctrl-u>": "PageUp",
+      "<Ctrl-d>": "PageDn",
     },
   }
 }
