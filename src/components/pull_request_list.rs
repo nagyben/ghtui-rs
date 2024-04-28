@@ -1,5 +1,3 @@
-use std::{collections::HashMap, time::Duration};
-
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 use crossterm::event::{KeyCode, KeyEvent};
 use derivative::Derivative;
@@ -35,6 +33,7 @@ use crate::{
         Component, Frame,
     },
     config::{Config, KeyBindings},
+    github::client::{GithubClient, GraphQLGithubClient},
 };
 
 #[derive(Default)]
@@ -46,6 +45,7 @@ pub struct PullRequestList {
     username: String,
     show_info_overlay: bool,
     info_overlay: PullRequestInfoOverlay,
+    client: GraphQLGithubClient,
 }
 
 impl PullRequestList {
@@ -56,20 +56,10 @@ impl PullRequestList {
     fn get_current_user(&mut self) -> Result<()> {
         let tx = self.command_tx.clone().unwrap();
         tokio::spawn(async move {
-            let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");
-            let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
-
-            let response: serde_json::Value = oc
-                .graphql(&serde_json::json!({ "query": "{ viewer { login }}" }))
-                .await
-                .unwrap_or(serde_json::Value::Null);
-
-            if let serde_json::Value::Null = response {
-                return tx.send(Action::Error("Failed to get current user".to_string()));
+            match GraphQLGithubClient::get_current_user().await {
+                Ok(username) => tx.send(Action::GetCurrentUserResult(username)),
+                Err(err) => tx.send(Action::Error(err.to_string())),
             }
-
-            let username = String::from(response["data"]["viewer"]["login"].as_str().unwrap());
-            tx.send(Action::GetCurrentUserResult(username))
         });
         Ok(())
     }
@@ -78,38 +68,14 @@ impl PullRequestList {
         let tx = self.command_tx.clone().unwrap();
         let username = self.username.clone();
         tokio::spawn(async move {
-            let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");
-            let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
-
             if username.is_empty() {
-                tx.send(Action::GetCurrentUser);
-                tx.send(Action::GetRepos);
+                tx.send(Action::GetCurrentUser)?;
+                tx.send(Action::GetRepos)?;
             }
 
-            let response: octocrab::Result<graphql_client::Response<pull_requests_query::ResponseData>> = oc
-                .graphql(&PullRequestsQuery::build_query(pull_requests_query::Variables {
-                    first: 10,
-                    query: format!("is:pr involves:{} state:open", username),
-                }))
-                .await;
-            match response {
-                Ok(response) => {
-                    log::info!("{:#?}", response);
-                    let r = response.data.unwrap().search.edges.unwrap();
-                    let pull_requests: Vec<PullRequest> = r
-                        .iter()
-                        .map(|v: &Option<pull_requests_query::PullRequestsQuerySearchEdges>| {
-                            let inner = v.as_ref().unwrap().node.as_ref().unwrap();
-                            match inner {
-                                pull_requests_query::PullRequestsQuerySearchEdgesNode::PullRequest(pr) => pr.into(),
-                                _ => panic!("Unexpected node type: {:?}", inner),
-                            }
-                        })
-                        .collect();
-                    pull_requests.iter().for_each(|pr| {});
-                    tx.send(Action::GetReposResult(pull_requests))
-                },
-                Err(e) => tx.send(Action::Error(e.to_string())),
+            match GraphQLGithubClient::get_pull_requests(username).await {
+                Ok(pull_requests) => tx.send(Action::GetReposResult(pull_requests)),
+                Err(err) => tx.send(Action::Error(err.to_string())),
             }
         });
         Ok(())
@@ -259,7 +225,7 @@ impl Component for PullRequestList {
         }
 
         match action {
-            Action::Enter => {
+            Action::Info | Action::Enter => {
                 if let Some(pull_requests) = &self.pull_requests {
                     if let Some(pr) = pull_requests.get(self.selected_row) {
                         self.info_overlay = PullRequestInfoOverlay::new().with_pull_request(pr.clone());
@@ -288,6 +254,8 @@ impl Component for PullRequestList {
 }
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     #[test]
@@ -303,12 +271,18 @@ mod tests {
         assert_eq!(item_list.update(Action::Down).unwrap(), Some(Action::Render));
     }
 
-    #[test]
-    fn test_dismiss_info_overlay_actions() {
-        let mut item_list = PullRequestList::new();
+    #[rstest]
+    #[case(Action::Info)]
+    #[case(Action::Escape)]
+    #[case(Action::Back)]
+    fn test_dismiss_info_overlay_actions(#[case] action: Action) {
+        let mut item_list = PullRequestList::default();
+        // simulate opening the info overlay
         assert_eq!(item_list.update(Action::Info).unwrap(), None);
         assert!(item_list.show_info_overlay);
-        assert_eq!(item_list.update(Action::Info).unwrap(), None);
+
+        // simulate dismissing the info overlay
+        assert_eq!(item_list.update(action).unwrap(), None);
         assert!(!item_list.show_info_overlay)
     }
 }

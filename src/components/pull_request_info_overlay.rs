@@ -1,5 +1,3 @@
-use std::{alloc::Layout, collections::HashMap, time::Duration};
-
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 use crossterm::event::{KeyCode, KeyEvent};
 use graphql_client::GraphQLQuery;
