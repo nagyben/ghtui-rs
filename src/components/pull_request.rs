@@ -12,7 +12,7 @@ use self::pull_requests_query::{
 #[graphql(
     schema_path = "src/github/schema.graphql",
     query_path = "src/github/queries/pull_requests.graphql",
-    variables_derives = "Clone, Debug, Eq, PartialEq",
+    variables_derives = "Clone, Debug, Eq, PartialEq, Ord, PartialOrd",
     response_derives = "Clone, Debug"
 )]
 pub struct PullRequestsQuery;

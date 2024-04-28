@@ -30,10 +30,13 @@ pub enum Action {
     Back,
     PageDn,
     PageUp,
+    Sort(usize),
 
     // custom actions for fetching data
     GetRepos,
     GetReposResult(Vec<PullRequest>),
     GetCurrentUserResult(String),
     GetCurrentUser,
+    Left,
+    Right,
 }

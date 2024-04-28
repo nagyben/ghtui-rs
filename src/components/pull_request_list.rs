@@ -46,6 +46,7 @@ pub struct PullRequestList {
     show_info_overlay: bool,
     info_overlay: PullRequestInfoOverlay,
     client: GraphQLGithubClient,
+    selected_column: usize,
 }
 
 impl PullRequestList {
@@ -79,6 +80,24 @@ impl PullRequestList {
             }
         });
         Ok(())
+    }
+
+    fn selected_column(columns: Vec<&'static str>, selected_column: usize) -> Vec<Cell> {
+        columns
+            .iter()
+            .enumerate()
+            .map(|(i, &column)| {
+                if i == selected_column {
+                    Cell::from(Line::from(vec![
+                        Span::from("[").style(Style::default().fg(Color::LightBlue)),
+                        Span::from(column),
+                        Span::from("]*").style(Style::default().fg(Color::LightBlue)),
+                    ]))
+                } else {
+                    Cell::from(column)
+                }
+            })
+            .collect()
     }
 
     fn render_pull_requests_table(&mut self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
@@ -140,17 +159,10 @@ impl PullRequestList {
             .rows(rows)
             .column_spacing(1)
             .header(
-                Row::new(vec![
-                    "#",
-                    "Repository",
-                    "Title",
-                    "Author",
-                    "Created",
-                    "Updated",
-                    "Changes",
-                    "State",
-                    "Reviews",
-                ])
+                Row::new(PullRequestList::selected_column(
+                    vec!["#", "Repository", "Title", "Author", "Created", "Updated", "Changes", "State", "Reviews"],
+                    self.selected_column,
+                ))
                 .bottom_margin(1),
             )
             .block(
@@ -172,6 +184,24 @@ impl PullRequestList {
             .alignment(Alignment::Center);
 
         f.render_widget(text, centered_rect(area, 100, 10))
+    }
+
+    fn sort_pull_requests(&mut self) {
+        if let Some(ref mut pull_requests) = self.pull_requests {
+            pull_requests.sort_by(|a, b| {
+                match self.selected_column {
+                    0 => a.number.cmp(&b.number),
+                    1 => a.repository.cmp(&b.repository),
+                    2 => a.title.cmp(&b.title),
+                    3 => a.author.cmp(&b.author),
+                    4 => a.created_at.cmp(&b.created_at),
+                    5 => a.updated_at.cmp(&b.updated_at),
+                    6 => (a.additions + a.deletions).cmp(&(b.additions + b.deletions)),
+                    7 => a.state.cmp(&b.state),
+                    _ => a.title.cmp(&b.title),
+                }
+            });
+        }
     }
 }
 
@@ -202,6 +232,14 @@ impl Component for PullRequestList {
                         return Ok(Some(Action::Render));
                     }
                 },
+                Action::Left => {
+                    self.selected_column = self.selected_column.saturating_sub(1);
+                    self.sort_pull_requests();
+                },
+                Action::Right => {
+                    self.selected_column = self.selected_column.saturating_add(1);
+                    self.sort_pull_requests();
+                },
                 Action::GetRepos => {
                     self.fetch_repos()?;
                 },
@@ -220,6 +258,7 @@ impl Component for PullRequestList {
                     let _ = self.get_current_user();
                 },
                 Action::GetCurrentUserResult(user) => self.username.clone_from(user),
+                Action::Sort(column) => todo!(),
                 _ => {},
             }
         }
