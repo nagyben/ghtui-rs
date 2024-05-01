@@ -71,11 +71,11 @@ impl PullRequestList {
         tokio::spawn(async move {
             if username.is_empty() {
                 tx.send(Action::GetCurrentUser)?;
-                tx.send(Action::GetRepos)?;
             }
 
             match GraphQLGithubClient::get_pull_requests(username).await {
                 Ok(pull_requests) => tx.send(Action::GetReposResult(pull_requests)),
+                // TODO: handle case when the PAT token is invalid or expired
                 Err(err) => tx.send(Action::Error(err.to_string())),
             }
         });
