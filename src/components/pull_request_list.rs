@@ -210,14 +210,14 @@ impl PullRequestList {
     fn refresh(&mut self) {
         let tx = self.command_tx.clone().unwrap();
         if self.username.is_empty() {
-            self.get_current_user();
+            let _ = self.get_current_user();
             tokio::spawn(async move {
                 // sleep for a second to give the client time to get the username
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                tx.send(Action::Refresh);
+                let _ = tx.send(Action::Refresh);
             });
         } else {
-            self.fetch_repos();
+            let _ = self.fetch_repos();
         }
     }
 }

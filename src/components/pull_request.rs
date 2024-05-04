@@ -1,3 +1,4 @@
+#![allow(clippy::upper_case_acronyms)]
 type URI = String;
 type DateTime = chrono::DateTime<chrono::Utc>;
 
@@ -52,8 +53,8 @@ impl std::cmp::Ord for PullRequest {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let repo_ord = self.repository.cmp(&other.repository);
         match repo_ord {
-            std::cmp::Ordering::Equal => return self.number.cmp(&other.number),
-            _ => return repo_ord,
+            std::cmp::Ordering::Equal => self.number.cmp(&other.number),
+            _ => repo_ord,
         }
     }
 }
