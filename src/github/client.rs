@@ -38,7 +38,7 @@ impl GithubClient for GraphQLGithubClient {
                     query: format!("is:pr involves:{} state:open", username),
                 }))
                 .await
-                .expect("Failed to get pull requests (involves)");
+                .expect("Failed to get pull requests");
             response
         });
 
@@ -51,7 +51,7 @@ impl GithubClient for GraphQLGithubClient {
                     query: format!("is:pr review-requested:{} state:open", username2),
                 }))
                 .await
-                .expect("Failed to get pull requests (review-requested)");
+                .expect("Failed to get pull requests");
             response
         });
 
@@ -93,8 +93,9 @@ impl GithubClient for GraphQLGithubClient {
             })
             .collect();
 
-        let pull_requests =
+        let mut pull_requests: Vec<PullRequest> =
             pull_requests_involves.into_iter().chain(pull_requests_review_requested.into_iter()).collect();
-        Ok((pull_requests))
+        pull_requests.dedup();
+        Ok(pull_requests)
     }
 }

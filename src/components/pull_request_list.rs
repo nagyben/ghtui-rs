@@ -19,6 +19,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
 use super::{
+    notifications::Notification,
     pull_request::{self, pull_requests_query::PullRequestState},
     pull_request_info_overlay::PullRequestInfoOverlay,
     utils::centered_rect,
@@ -67,6 +68,7 @@ impl PullRequestList {
 
     fn fetch_repos(&mut self) -> Result<()> {
         let tx = self.command_tx.clone().unwrap();
+        tx.send(Action::Notify(Notification::Info(String::from("kurva"))))?;
         let username = self.username.clone();
         tokio::spawn(async move {
             if username.is_empty() {

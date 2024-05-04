@@ -17,7 +17,7 @@ use self::pull_requests_query::{
 )]
 pub struct PullRequestsQuery;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub struct PullRequest {
     pub number: usize,
     pub title: String,
@@ -35,6 +35,12 @@ pub struct PullRequest {
     pub base_branch: String,
     pub body: String,
     pub comments: Vec<PullRequestComment>,
+}
+
+impl PartialEq for PullRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.number == other.number && self.repository == other.repository
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

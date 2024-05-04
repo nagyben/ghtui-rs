@@ -6,7 +6,7 @@ use serde::{
 };
 use strum::Display;
 
-use crate::components::pull_request::PullRequest;
+use crate::components::{notifications::Notification, pull_request::PullRequest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
 pub enum Action {
@@ -31,6 +31,7 @@ pub enum Action {
     PageDn,
     PageUp,
     Sort(usize),
+    Notify(Notification),
 
     // custom actions for fetching data
     GetRepos,

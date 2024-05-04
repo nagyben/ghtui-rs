@@ -8,8 +8,8 @@ use tracing::{debug, info};
 use crate::{
     action::Action,
     components::{
-        fps::FpsCounter, home::Home, keystrokes::Keystrokes, pull_request_info_overlay::PullRequestInfoOverlay,
-        pull_request_list::PullRequestList, Component,
+        fps::FpsCounter, home::Home, keystrokes::Keystrokes, notifications::Notifications,
+        pull_request_info_overlay::PullRequestInfoOverlay, pull_request_list::PullRequestList, Component,
     },
     config::Config,
     mode::Mode,
@@ -33,11 +33,12 @@ impl App {
         let pr_list = PullRequestList::default();
         let keystrokes = Keystrokes::default();
         let config = Config::new()?;
+        let notifications = Notifications::default();
         let mode = Mode::Normal;
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(home), Box::new(keystrokes), Box::new(pr_list)],
+            components: vec![Box::new(home), Box::new(keystrokes), Box::new(pr_list), Box::new(notifications)],
             should_quit: false,
             should_suspend: false,
             config,
