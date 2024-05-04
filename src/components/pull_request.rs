@@ -1,8 +1,11 @@
 type URI = String;
 type DateTime = chrono::DateTime<chrono::Utc>;
 
+use std::fmt::Debug;
+
 use graphql_client::GraphQLQuery;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use self::pull_requests_query::{
     PullRequestReviewState, PullRequestState, PullRequestsQuerySearchEdgesNodeOnPullRequest,
@@ -17,7 +20,7 @@ use self::pull_requests_query::{
 )]
 pub struct PullRequestsQuery;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
+#[derive(Clone, Serialize, Deserialize, Eq)]
 pub struct PullRequest {
     pub number: usize,
     pub title: String,
@@ -39,7 +42,38 @@ pub struct PullRequest {
 
 impl PartialEq for PullRequest {
     fn eq(&self, other: &Self) -> bool {
+        debug!("{:?} == {:?}", self.number, other.number);
+        debug!("{:?} == {:?}", self.repository, other.repository);
         self.number == other.number && self.repository == other.repository
+    }
+}
+
+impl std::cmp::Ord for PullRequest {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let repo_ord = self.repository.cmp(&other.repository);
+        match repo_ord {
+            std::cmp::Ordering::Equal => return self.number.cmp(&other.number),
+            _ => return repo_ord,
+        }
+    }
+}
+
+impl PartialOrd for PullRequest {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::fmt::Debug for PullRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PullRequest")
+            .field("number", &self.number)
+            .field("title", &self.title)
+            .field("repository", &self.repository)
+            .field("state", &self.state)
+            .field("author", &self.author)
+            .field("base_branch", &self.base_branch)
+            .finish()
     }
 }
 

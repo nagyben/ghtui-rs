@@ -57,6 +57,7 @@ impl PullRequestList {
 
     fn get_current_user(&mut self) -> Result<()> {
         let tx = self.command_tx.clone().unwrap();
+        tx.send(Action::Notify(Notification::Info(String::from("Getting current user..."))))?;
         tokio::spawn(async move {
             match GraphQLGithubClient::get_current_user().await {
                 Ok(username) => tx.send(Action::GetCurrentUserResult(username)),
@@ -68,7 +69,7 @@ impl PullRequestList {
 
     fn fetch_repos(&mut self) -> Result<()> {
         let tx = self.command_tx.clone().unwrap();
-        tx.send(Action::Notify(Notification::Info(String::from("kurva"))))?;
+        tx.send(Action::Notify(Notification::Info(String::from("Fetching pull requests..."))))?;
         let username = self.username.clone();
         tokio::spawn(async move {
             if username.is_empty() {
@@ -205,6 +206,20 @@ impl PullRequestList {
             });
         }
     }
+
+    fn refresh(&mut self) {
+        let tx = self.command_tx.clone().unwrap();
+        if self.username.is_empty() {
+            self.get_current_user();
+            tokio::spawn(async move {
+                // sleep for a second to give the client time to get the username
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                tx.send(Action::Refresh);
+            });
+        } else {
+            self.fetch_repos();
+        }
+    }
 }
 
 impl Component for PullRequestList {
@@ -242,8 +257,8 @@ impl Component for PullRequestList {
                     self.selected_column = self.selected_column.saturating_add(1);
                     self.sort_pull_requests();
                 },
-                Action::GetRepos => {
-                    self.fetch_repos()?;
+                Action::Refresh => {
+                    self.refresh();
                 },
                 Action::GetReposResult(pull_requests) => {
                     self.pull_requests = Some(pull_requests.clone());

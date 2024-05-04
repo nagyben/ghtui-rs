@@ -12,7 +12,7 @@
       "l": "Right",
       "left": "Left",
       "right": "Right",
-      "r": "GetRepos", // Refresh the list of repositories
+      "r": "Refresh", // Refresh the list of repositories
       "enter": "Enter",
       "i": "Info",
       "?": "Help",

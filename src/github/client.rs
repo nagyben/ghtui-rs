@@ -95,6 +95,7 @@ impl GithubClient for GraphQLGithubClient {
 
         let mut pull_requests: Vec<PullRequest> =
             pull_requests_involves.into_iter().chain(pull_requests_review_requested.into_iter()).collect();
+        pull_requests.sort(); // dedup requires sorted data
         pull_requests.dedup();
         Ok(pull_requests)
     }

@@ -8,8 +8,13 @@ use tracing::{debug, info};
 use crate::{
     action::Action,
     components::{
-        fps::FpsCounter, home::Home, keystrokes::Keystrokes, notifications::Notifications,
-        pull_request_info_overlay::PullRequestInfoOverlay, pull_request_list::PullRequestList, Component,
+        fps::FpsCounter,
+        home::Home,
+        keystrokes::Keystrokes,
+        notifications::{Notification, Notifications},
+        pull_request_info_overlay::PullRequestInfoOverlay,
+        pull_request_list::PullRequestList,
+        Component,
     },
     config::Config,
     mode::Mode,
@@ -129,6 +134,9 @@ impl App {
                                 }
                             }
                         })?;
+                    },
+                    Action::Error(ref err) => {
+                        action_tx.send(Action::Notify(Notification::Error(format!("Error: {err}"))))?;
                     },
                     _ => {},
                 }

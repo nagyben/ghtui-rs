@@ -1,6 +1,9 @@
 use std::time::Instant;
 
-use color_eyre::eyre::Result;
+use color_eyre::{
+    eyre::Result,
+    owo_colors::{colors::CustomColor, OwoColorize},
+};
 use ratatui::{prelude::*, widgets::*};
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -16,6 +19,8 @@ pub struct Notifications {
 
 type NotificationWithTimestamp = (Notification, Instant);
 
+const NOTIFICATION_DURATION: u64 = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
 pub enum Notification {
     Info(String),
@@ -25,6 +30,8 @@ pub enum Notification {
 
 impl Notifications {
     fn app_tick(&mut self) -> Result<()> {
+        let now = Instant::now();
+        self.notifications.retain(|(_, timestamp)| timestamp.elapsed().as_secs() < NOTIFICATION_DURATION);
         Ok(())
     }
 
@@ -41,35 +48,44 @@ impl Component for Notifications {
             Action::Notify(notification) => {
                 self.notifications.push((notification, Instant::now()));
             },
-            Action::Up | Action::Down => {
-                self.notifications.push((Notification::Info(action.to_string()), Instant::now()));
-            },
             _ => (),
         };
         Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
-        let notifications = List::new(
-            self.notifications
-                .iter()
-                .map(|n| {
-                    match &n.0 {
+        if !self.notifications.is_empty() {
+            for (i, notification) in self.notifications.iter().enumerate() {
+                let notification_text = Text::from(
+                    match &notification.0 {
                         Notification::Info(s) => s,
                         Notification::Warning(s) => s,
                         Notification::Error(s) => s,
                     }
-                })
-                .map(|s| ListItem::new(Text::from(s.clone()).style(Style::default().red()).alignment(Alignment::Right)))
-                .collect::<Vec<_>>(),
-        )
-        .block(Block::default());
+                    .clone(),
+                )
+                .style(
+                    Style::default()
+                        .fg(match &notification.0 {
+                            Notification::Info(_) => Color::LightBlue,
+                            Notification::Warning(_) => Color::LightYellow,
+                            Notification::Error(_) => Color::LightRed,
+                        })
+                        .bg(Color::from_u32(0x00101010)),
+                )
+                .alignment(Alignment::Right);
 
-        debug!("Drawing notifications: {:?}", self.notifications);
+                let rect = Rect::new(
+                    rect.width - notification_text.width() as u16,
+                    rect.y + i as u16 + 1,
+                    notification_text.width() as u16,
+                    1,
+                );
 
-        let rect = Rect::new(rect.width.saturating_sub(40), 0, 40, 10);
-
-        f.render_widget(notifications, rect);
+                f.render_widget(Clear, rect);
+                f.render_widget(notification_text, rect);
+            }
+        }
         Ok(())
     }
 }
