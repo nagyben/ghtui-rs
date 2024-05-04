@@ -33,8 +33,9 @@ use crate::{
         },
         Component, Frame,
     },
-    config::{Config, KeyBindings},
+    config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
     github::client::{GithubClient, GraphQLGithubClient},
+    mode::Mode,
 };
 
 #[derive(Default)]
@@ -182,10 +183,17 @@ impl PullRequestList {
 
     fn render_placeholder(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
         // TODO: get the key bindings from the config
-        let text = Paragraph::new("Press 'R' to refresh")
-            .style(Style::default().fg(Color::White))
-            .alignment(Alignment::Center);
-
+        let text = Paragraph::new(
+            if let Some(refresh_key) =
+                get_keybinding_for_action(&self.config.keybindings, Mode::Normal, &Action::Refresh)
+            {
+                format!("Press '{}' to refresh", key_event_to_string(&refresh_key[0]))
+            } else {
+                String::from("Error: refresh key not bound in the config!")
+            },
+        )
+        .style(Style::default().fg(Color::White))
+        .alignment(Alignment::Center);
         f.render_widget(text, centered_rect(area, 100, 10))
     }
 
@@ -219,6 +227,16 @@ impl PullRequestList {
         } else {
             let _ = self.fetch_repos();
         }
+    }
+
+    fn render_token_error(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
+        let text = Paragraph::new(vec![
+            Line::from("Error: GITHUB_TOKEN is not set!"),
+            Line::from("Create a Personal Access Token in the GitHub UI and set the GITHUB_TOKEN environment variable to its value before running ghtui"),
+            Line::from("Press 'q' or 'ctrl-c' to quit"),
+        ]).style(Style::default().fg(Color::Red))
+        .alignment(Alignment::Center);
+        f.render_widget(text, centered_rect(area, 100, 10));
     }
 }
 
@@ -298,6 +316,12 @@ impl Component for PullRequestList {
 
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
         self.render_pull_requests_table(f, area);
+        // if GITHUB_TOKEN is not set, display a placeholder
+        if std::env::var("GITHUB_TOKEN").is_err() {
+            self.render_token_error(f, area);
+            return Ok(());
+        }
+
         if self.pull_requests.is_none() {
             self.render_placeholder(f, area);
         }
@@ -308,9 +332,12 @@ impl Component for PullRequestList {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use sealed_test::prelude::*;
+    use tokio::sync::mpsc;
 
     use super::*;
 

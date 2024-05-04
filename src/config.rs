@@ -270,6 +270,12 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     sequences.into_iter().map(parse_key_event).collect()
 }
 
+pub fn get_keybinding_for_action(keybindings: &KeyBindings, mode: Mode, action: &Action) -> Option<Vec<KeyEvent>> {
+    keybindings.get(&mode).and_then(|bindings| {
+        bindings.iter().find_map(|(key, cmd)| if cmd == action { Some(key.clone()) } else { None })
+    })
+}
+
 #[derive(Clone, Debug, Default, Deref, DerefMut)]
 pub struct Styles(pub HashMap<Mode, HashMap<String, Style>>);
 

@@ -54,3 +54,4 @@ vergen = { version = "8.2.6", features = ["build", "git", "gitoxide", "cargo"] }
 
 [dev-dependencies]
 rstest = "0.19.0"
+sealed_test = "1.0.0"
