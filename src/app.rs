@@ -8,8 +8,6 @@ use tracing::{debug, info};
 use crate::{
     action::Action,
     components::{
-        fps::FpsCounter,
-        home::Home,
         keystrokes::Keystrokes,
         notifications::{Notification, Notifications},
         pull_request_info_overlay::PullRequestInfoOverlay,
@@ -34,7 +32,6 @@ pub struct App {
 
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
-        let home = Home::new();
         let pr_list = PullRequestList::default();
         let keystrokes = Keystrokes::default();
         let config = Config::new()?;
@@ -43,7 +40,7 @@ impl App {
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(home), Box::new(keystrokes), Box::new(pr_list), Box::new(notifications)],
+            components: vec![Box::new(keystrokes), Box::new(pr_list), Box::new(notifications)],
             should_quit: false,
             should_suspend: false,
             config,
