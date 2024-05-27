@@ -26,6 +26,7 @@ use super::{
 };
 use crate::{
     action::Action,
+    colors::{ACTIVE_BORDER_COLOR, BG_COLOR, BLUE_COLOR, BODY_COLOR},
     components::{
         pull_request::{
             pull_requests_query::{self, PullRequestReviewState},
@@ -98,9 +99,9 @@ impl PullRequestList {
             .map(|(i, &column)| {
                 if i == selected_column {
                     Cell::from(Line::from(vec![
-                        Span::from("[").style(Style::default().fg(Color::LightBlue)),
+                        Span::from("[").style(Style::default().fg(BLUE_COLOR)),
                         Span::from(column),
-                        Span::from("]*").style(Style::default().fg(Color::LightBlue)),
+                        Span::from("]*").style(Style::default().fg(BLUE_COLOR)),
                     ]))
                 } else {
                     Cell::from(column)
@@ -176,9 +177,10 @@ impl PullRequestList {
             )
             .block(
                 Block::default()
-                    .title(Title::from("Pull Requests"))
                     .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
+                    .border_type(BorderType::Rounded)
+                    .border_style(ACTIVE_BORDER_COLOR)
+                    .style(Style::default().bg(BG_COLOR).fg(BODY_COLOR)),
             )
             .highlight_style(Style::new().reversed().add_modifier(Modifier::BOLD))
             .highlight_symbol(">> ");

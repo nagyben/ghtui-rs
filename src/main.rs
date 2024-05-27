@@ -5,6 +5,7 @@
 pub mod action;
 pub mod app;
 pub mod cli;
+pub mod colors;
 pub mod components;
 pub mod config;
 pub mod github;

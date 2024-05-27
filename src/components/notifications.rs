@@ -10,7 +10,11 @@ use strum::Display;
 use tracing::debug;
 
 use super::Component;
-use crate::{action::Action, tui::Frame};
+use crate::{
+    action::Action,
+    colors::{BG_COLOR, BLUE_COLOR, PINK_COLOR, YELLOW_COLOR},
+    tui::Frame,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct Notifications {
@@ -67,11 +71,11 @@ impl Component for Notifications {
                 .style(
                     Style::default()
                         .fg(match &notification.0 {
-                            Notification::Info(_) => Color::LightBlue,
-                            Notification::Warning(_) => Color::LightYellow,
-                            Notification::Error(_) => Color::LightRed,
+                            Notification::Info(_) => BLUE_COLOR,
+                            Notification::Warning(_) => YELLOW_COLOR,
+                            Notification::Error(_) => PINK_COLOR,
                         })
-                        .bg(Color::from_u32(0x00101010)),
+                        .bg(BG_COLOR),
                 )
                 .alignment(Alignment::Right);
 
