@@ -26,7 +26,7 @@ use super::{
 };
 use crate::{
     action::Action,
-    colors::{ACTIVE_BORDER_COLOR, BG_COLOR, BLUE_COLOR, BODY_COLOR},
+    colors::{BASE, BLUE, GREEN, LAVENDER, OVERLAY0, PEACH, PINK, RED, ROSEWATER, SURFACE0, TEXT, YELLOW},
     components::{
         pull_request::{
             pull_requests_query::{self, PullRequestReviewState},
@@ -98,13 +98,9 @@ impl PullRequestList {
             .enumerate()
             .map(|(i, &column)| {
                 if i == selected_column {
-                    Cell::from(Line::from(vec![
-                        Span::from("[").style(Style::default().fg(BLUE_COLOR)),
-                        Span::from(column),
-                        Span::from("]*").style(Style::default().fg(BLUE_COLOR)),
-                    ]))
+                    Cell::from(column).style(Style::new().fg(PEACH))
                 } else {
-                    Cell::from(column)
+                    Cell::from(column).style(Style::new().fg(TEXT))
                 }
             })
             .collect()
@@ -124,11 +120,8 @@ impl PullRequestList {
                         Cell::from(format!("{}", pr.created_at.format("%Y-%m-%d %H:%M"))),
                         Cell::from(format!("{}", pr.updated_at.format("%Y-%m-%d %H:%M"))),
                         Cell::from(Line::from(vec![
-                            Span::styled(format!("{:+}", pr.additions), Style::new().fg(Color::LightGreen)),
-                            Span::styled(
-                                format!("{:+}", (0 - pr.deletions as isize)),
-                                Style::new().fg(Color::LightRed),
-                            ),
+                            Span::styled(format!("{:+}", pr.additions), Style::new().fg(GREEN)),
+                            Span::styled(format!("{:+}", (0 - pr.deletions as isize)), Style::new().fg(RED)),
                         ])),
                         Cell::from(match pr.state {
                             pull_requests_query::PullRequestState::OPEN => {
@@ -146,11 +139,9 @@ impl PullRequestList {
                                 .flat_map(|prr| {
                                     vec![
                                         Span::styled(prr.author.clone(), match prr.state {
-                                            PullRequestReviewState::COMMENTED => Style::new().fg(Color::LightBlue),
-                                            PullRequestReviewState::APPROVED => Style::new().fg(Color::LightGreen),
-                                            PullRequestReviewState::CHANGES_REQUESTED => {
-                                                Style::new().fg(Color::LightYellow)
-                                            },
+                                            PullRequestReviewState::COMMENTED => Style::new().fg(BLUE),
+                                            PullRequestReviewState::APPROVED => Style::new().fg(GREEN),
+                                            PullRequestReviewState::CHANGES_REQUESTED => Style::new().fg(YELLOW),
                                             _ => Style::new().fg(Color::Gray),
                                         }),
                                         Span::raw(" "),
@@ -179,10 +170,10 @@ impl PullRequestList {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(ACTIVE_BORDER_COLOR)
-                    .style(Style::default().bg(BG_COLOR).fg(BODY_COLOR)),
+                    .border_style(ROSEWATER)
+                    .style(Style::default().bg(BASE).fg(TEXT)),
             )
-            .highlight_style(Style::new().reversed().add_modifier(Modifier::BOLD))
+            .highlight_style(Style::new().bg(SURFACE0).fg(TEXT).add_modifier(Modifier::BOLD))
             .highlight_symbol(">> ");
 
         f.render_stateful_widget(table, area, &mut table_state);
@@ -199,7 +190,7 @@ impl PullRequestList {
                 String::from("Error: refresh key not bound in the config!")
             },
         )
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().fg(TEXT))
         .alignment(Alignment::Center);
         f.render_widget(text, centered_rect(area, 100, 10))
     }
@@ -241,7 +232,7 @@ impl PullRequestList {
             Line::from("Error: GITHUB_TOKEN is not set!"),
             Line::from("Create a Personal Access Token in the GitHub UI and set the GITHUB_TOKEN environment variable to its value before running ghtui"),
             Line::from("Press 'q' or 'ctrl-c' to quit"),
-        ]).style(Style::default().fg(Color::Red))
+        ]).style(Style::default().fg(RED))
         .alignment(Alignment::Center);
         f.render_widget(text, centered_rect(area, 100, 10));
     }

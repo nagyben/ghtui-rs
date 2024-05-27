@@ -12,7 +12,7 @@ use tracing::debug;
 use super::Component;
 use crate::{
     action::Action,
-    colors::{BG_COLOR, BLUE_COLOR, PINK_COLOR, YELLOW_COLOR},
+    colors::{BASE, BLUE, PINK, YELLOW},
     tui::Frame,
 };
 
@@ -71,11 +71,11 @@ impl Component for Notifications {
                 .style(
                     Style::default()
                         .fg(match &notification.0 {
-                            Notification::Info(_) => BLUE_COLOR,
-                            Notification::Warning(_) => YELLOW_COLOR,
-                            Notification::Error(_) => PINK_COLOR,
+                            Notification::Info(_) => BLUE,
+                            Notification::Warning(_) => YELLOW,
+                            Notification::Error(_) => PINK,
                         })
-                        .bg(BG_COLOR),
+                        .bg(BASE),
                 )
                 .alignment(Alignment::Right);
 

@@ -14,6 +14,7 @@ use tracing::{debug, info};
 use super::pull_request::{self, pull_requests_query::PullRequestState};
 use crate::{
     action::Action,
+    colors::{BASE, TEXT},
     components::{
         pull_request::{
             pull_requests_query::{self, PullRequestReviewState},
@@ -88,7 +89,8 @@ impl Component for PullRequestInfoOverlay {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::White).bg(Color::Black));
+            .border_style(Style::default().fg(TEXT).bg(BASE))
+            .bg(BASE);
         f.render_widget(Clear, area);
         f.render_widget(block, area);
 
@@ -112,14 +114,13 @@ impl Component for PullRequestInfoOverlay {
                 })
                 .into(),
             ])
-            .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+            .style(Style::default().fg(TEXT).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Left);
 
-            let horizontal_separator =
-                Paragraph::new("─".repeat(area.width as usize)).style(Style::default().fg(Color::White));
+            let horizontal_separator = Paragraph::new("─".repeat(area.width as usize)).style(Style::default().fg(TEXT));
 
             let body = Paragraph::new(&*pr.body)
-                .style(Style::default().fg(Color::White))
+                .style(Style::default().fg(TEXT))
                 .alignment(Alignment::Left)
                 .scroll((self.scroll_offset, 0));
 
