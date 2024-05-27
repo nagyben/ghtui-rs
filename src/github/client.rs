@@ -22,12 +22,14 @@ pub struct GraphQLGithubClient;
 impl GithubClient for GraphQLGithubClient {
     async fn get_current_user() -> Result<String> {
         let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");
+        debug!("Getting current user profile from GITHUB_TOKEN");
         let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
         let response: serde_json::Value = oc.graphql(&serde_json::json!({ "query": "{ viewer { login }}" })).await?;
         Ok(String::from(response["data"]["viewer"]["login"].as_str().unwrap()))
     }
 
     async fn get_pull_requests(username: String) -> Result<Vec<PullRequest>> {
+        debug!("Getting pull requests for {}", username);
         let username2 = username.clone();
         let t1 = tokio::spawn(async move {
             let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");

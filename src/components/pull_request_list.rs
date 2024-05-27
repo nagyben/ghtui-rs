@@ -16,7 +16,7 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info};
+use tracing::{debug, error, error_span, info};
 
 use super::{
     notifications::Notification,
@@ -62,7 +62,10 @@ impl PullRequestList {
         tokio::spawn(async move {
             match GraphQLGithubClient::get_current_user().await {
                 Ok(username) => tx.send(Action::GetCurrentUserResult(username)),
-                Err(err) => tx.send(Action::Error(err.to_string())),
+                Err(err) => {
+                    error!("Error getting current user: {:?}", err);
+                    tx.send(Action::Error(format!("{:#}", err)))
+                },
             }
         });
         Ok(())
@@ -79,8 +82,10 @@ impl PullRequestList {
 
             match GraphQLGithubClient::get_pull_requests(username).await {
                 Ok(pull_requests) => tx.send(Action::GetReposResult(pull_requests)),
-                // TODO: handle case when the PAT token is invalid or expired
-                Err(err) => tx.send(Action::Error(err.to_string())),
+                Err(err) => {
+                    error!("Error getting pull requests: {:?}", err);
+                    tx.send(Action::Error(err.to_string()))
+                },
             }
         });
         Ok(())
@@ -241,6 +246,11 @@ impl PullRequestList {
 }
 
 impl Component for PullRequestList {
+    fn init(&mut self, area: Rect) -> Result<()> {
+        self.get_current_user()?;
+        Ok(())
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())
