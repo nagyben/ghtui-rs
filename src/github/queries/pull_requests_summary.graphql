@@ -1,0 +1,42 @@
+query PullRequestsSummaryQuery($query: String!, $first: Int!, $after: String) {
+  search(type: ISSUE, query: $query, first: $first, after: $after) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      cursor
+      node {
+        __typename
+        ... on PullRequest {
+          number
+          title
+          repository {
+            nameWithOwner
+          }
+          author {
+            __typename
+            login
+          }
+          createdAt
+          updatedAt
+          additions
+          deletions
+          state
+          isDraft
+          latestReviews(last: 5) {
+            edges {
+              node {
+                state
+                author {
+                  __typename
+                  login
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -11,18 +11,16 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
-use super::pull_request::{self, pull_requests_query::PullRequestState};
+use super::pull_request::PullRequestState;
 use crate::{
     action::Action,
     colors::{BASE, TEXT},
     components::{
-        pull_request::{
-            pull_requests_query::{self, PullRequestReviewState},
-            PullRequest, PullRequestsQuery,
-        },
+        pull_request::{PullRequest, PullRequestReviewState},
         Component, Frame,
     },
     config::{Config, KeyBindings},
+    github::{client::GraphQLGithubClient, traits::GithubClient},
 };
 
 #[derive(Default)]
@@ -30,7 +28,9 @@ pub struct PullRequestInfoOverlay {
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
     pull_request: Option<PullRequest>,
+    detailed_pull_request: Option<PullRequest>,
     scroll_offset: u16,
+    is_loading_details: bool,
 }
 
 impl PullRequestInfoOverlay {
@@ -40,16 +40,50 @@ impl PullRequestInfoOverlay {
 
     pub fn with_pull_request(mut self, pull_request: PullRequest) -> Self {
         self.pull_request = Some(pull_request);
+        self.detailed_pull_request = None;
+        self.is_loading_details = false; // Will be set to true when we start loading
         self
     }
 
-    fn get_pull_request_details() {
+    fn load_pull_request_details(&mut self) {
+        if let (Some(pr), Some(tx)) = (&self.pull_request, &self.command_tx) {
+            if self.is_loading_details {
+                return; // Already loading
+            }
+
+            self.is_loading_details = true;
+            let pr = pr.clone();
+            let tx_clone = tx.clone();
+
+            tokio::spawn(async move {
+                if let Some(repo_parts) = pr.repository.split_once('/') {
+                    let (owner, repo) = repo_parts;
+                    match GraphQLGithubClient::get_pull_request_details(owner.to_string(), repo.to_string(), pr.number)
+                        .await
+                    {
+                        Ok(detailed_pr) => {
+                            let _ = tx_clone.send(Action::PullRequestDetailsLoaded(Box::new(detailed_pr)));
+                        },
+                        Err(e) => {
+                            debug!("Failed to load PR details: {}", e);
+                            let _ = tx_clone.send(Action::PullRequestDetailsLoadError);
+                        },
+                    }
+                }
+            });
+        }
     }
 }
 
 impl Component for PullRequestInfoOverlay {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
+
+        // Start loading detailed data if we have a PR
+        if self.pull_request.is_some() {
+            self.load_pull_request_details();
+        }
+
         Ok(())
     }
 
@@ -80,6 +114,13 @@ impl Component for PullRequestInfoOverlay {
                     let _ = open::that(url);
                 }
             },
+            Action::PullRequestDetailsLoaded(detailed_pr) => {
+                self.detailed_pull_request = Some(*detailed_pr);
+                self.is_loading_details = false;
+            },
+            Action::PullRequestDetailsLoadError => {
+                self.is_loading_details = false;
+            },
             _ => {},
         }
         Ok(None)
@@ -102,15 +143,21 @@ impl Component for PullRequestInfoOverlay {
         .split(area.inner(&Margin { horizontal: 1, vertical: 1 }));
 
         if let Some(pr) = &self.pull_request {
+            // Use detailed PR if available, otherwise use summary PR
+            let display_pr = self.detailed_pull_request.as_ref().unwrap_or(pr);
+
             let header = Paragraph::new(vec![
-                Span::styled(format!("#{} in {}", pr.number, pr.repository), Style::default().fg(Color::Gray)).into(),
-                (*pr.title).to_string().into(),
-                format!("Opened by: {} on {}", pr.author, pr.created_at).into(),
-                format!("State: {}", match &pr.state {
-                    PullRequestState::CLOSED => "CLOSED".to_string(),
-                    PullRequestState::MERGED => "MERGED".to_string(),
-                    PullRequestState::OPEN => "OPEN".to_string(),
-                    PullRequestState::Other(state) => state.clone(),
+                Span::styled(
+                    format!("#{} in {}", display_pr.number, display_pr.repository),
+                    Style::default().fg(Color::Gray),
+                )
+                .into(),
+                (*display_pr.title).to_string().into(),
+                format!("Opened by: {} on {}", display_pr.author, display_pr.created_at).into(),
+                format!("State: {}", match &display_pr.state {
+                    PullRequestState::Closed => "CLOSED".to_string(),
+                    PullRequestState::Merged => "MERGED".to_string(),
+                    PullRequestState::Open => "OPEN".to_string(),
                 })
                 .into(),
             ])
@@ -119,7 +166,15 @@ impl Component for PullRequestInfoOverlay {
 
             let horizontal_separator = Paragraph::new("─".repeat(area.width as usize)).style(Style::default().fg(TEXT));
 
-            let body = Paragraph::new(&*pr.body)
+            let body_text = if self.is_loading_details {
+                "Loading detailed information...".to_string()
+            } else if display_pr.body.is_empty() {
+                "No description provided.".to_string()
+            } else {
+                display_pr.body.clone()
+            };
+
+            let body = Paragraph::new(body_text)
                 .style(Style::default().fg(TEXT))
                 .alignment(Alignment::Left)
                 .scroll((self.scroll_offset, 0));

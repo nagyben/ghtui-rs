@@ -1,0 +1,54 @@
+query PullRequestDetailQuery($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      number
+      title
+      repository {
+        nameWithOwner
+      }
+      author {
+        __typename
+        login
+      }
+      createdAt
+      updatedAt
+      url
+      changedFiles
+      additions
+      deletions
+      state
+      isDraft
+      latestReviews(last: 10) {
+        edges {
+          node {
+            state
+            author {
+              __typename
+              login
+            }
+          }
+        }
+      }
+      participants(last: 10) {
+        edges {
+          node {
+            login
+          }
+        }
+      }
+      baseRefName
+      body
+      comments(last: 10) {
+        nodes {
+          author {
+            __typename
+            login
+          }
+          body
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  }
+}

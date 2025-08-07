@@ -20,7 +20,6 @@ use tracing::{debug, error, error_span, info};
 
 use super::{
     notifications::Notification,
-    pull_request::{self, pull_requests_query::PullRequestState},
     pull_request_info_overlay::PullRequestInfoOverlay,
     utils::centered_rect,
 };
@@ -29,13 +28,12 @@ use crate::{
     colors::{BASE, BLUE, GREEN, LAVENDER, OVERLAY0, PEACH, PINK, RED, ROSEWATER, SURFACE0, TEXT, YELLOW},
     components::{
         pull_request::{
-            pull_requests_query::{self, PullRequestReviewState},
-            PullRequest, PullRequestsQuery,
+            PullRequest, PullRequestReviewState, PullRequestState,
         },
         Component, Frame,
     },
     config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
-    github::client::{GithubClient, GraphQLGithubClient},
+    github::{client::GraphQLGithubClient, traits::GithubClient},
     mode::Mode,
 };
 
@@ -50,11 +48,22 @@ pub struct PullRequestList {
     info_overlay: PullRequestInfoOverlay,
     client: GraphQLGithubClient,
     selected_column: usize,
+    // Pagination state
+    has_next_page: bool,
+    end_cursor: Option<String>,
+    is_loading_more: bool,
+    initial_load_size: usize,
+    page_size: usize,
 }
 
 impl PullRequestList {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            initial_load_size: 10,
+            page_size: 20,
+            has_next_page: true,
+            ..Default::default()
+        }
     }
 
     fn get_current_user(&mut self) -> Result<()> {
@@ -76,16 +85,48 @@ impl PullRequestList {
         let tx = self.command_tx.clone().unwrap();
         tx.send(Action::Notify(Notification::Info(String::from("Fetching pull requests..."))))?;
         let username = self.username.clone();
+        let initial_load_size = self.initial_load_size as i32;
+        
+        // Reset pagination state for fresh fetch
+        self.has_next_page = true;
+        self.end_cursor = None;
+        self.is_loading_more = false;
+        
         tokio::spawn(async move {
-            if username.is_empty() {
-                tx.send(Action::GetCurrentUser)?;
-            }
-
-            match GraphQLGithubClient::get_pull_requests(username).await {
-                Ok(pull_requests) => tx.send(Action::GetReposResult(pull_requests)),
+            match GraphQLGithubClient::get_pull_requests_paginated(username, initial_load_size, None).await {
+                Ok((pull_requests, has_next_page, end_cursor)) => {
+                    let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
+                },
                 Err(err) => {
                     error!("Error getting pull requests: {:?}", err);
-                    tx.send(Action::Error(err.to_string()))
+                    let _ = tx.send(Action::Error(err.to_string()));
+                },
+            }
+        });
+        Ok(())
+    }
+
+    fn load_more_pull_requests(&mut self) -> Result<()> {
+        if !self.has_next_page || self.is_loading_more {
+            return Ok(());
+        }
+        
+        let tx = self.command_tx.clone().unwrap();
+        tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
+        let username = self.username.clone();
+        let page_size = self.page_size as i32;
+        let after = self.end_cursor.clone();
+        
+        self.is_loading_more = true;
+        
+        tokio::spawn(async move {
+            match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
+                Ok((pull_requests, has_next_page, end_cursor)) => {
+                    let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
+                },
+                Err(err) => {
+                    error!("Error loading more pull requests: {:?}", err);
+                    let _ = tx.send(Action::Error(err.to_string()));
                 },
             }
         });
@@ -124,14 +165,15 @@ impl PullRequestList {
                             Span::styled(format!("{:+}", (0 - pr.deletions as isize)), Style::new().fg(RED)),
                         ])),
                         Cell::from(match pr.state {
-                            pull_requests_query::PullRequestState::OPEN => {
+                            PullRequestState::Open => {
                                 if pr.is_draft {
                                     "DRAFT"
                                 } else {
                                     "OPEN"
                                 }
                             },
-                            _ => "Unknown",
+                            PullRequestState::Closed => "CLOSED",
+                            PullRequestState::Merged => "MERGED",
                         }),
                         Cell::from(Line::from(
                             pr.reviews
@@ -139,9 +181,9 @@ impl PullRequestList {
                                 .flat_map(|prr| {
                                     vec![
                                         Span::styled(prr.author.clone(), match prr.state {
-                                            PullRequestReviewState::COMMENTED => Style::new().fg(BLUE),
-                                            PullRequestReviewState::APPROVED => Style::new().fg(GREEN),
-                                            PullRequestReviewState::CHANGES_REQUESTED => Style::new().fg(YELLOW),
+                                            PullRequestReviewState::Commented => Style::new().fg(BLUE),
+                                            PullRequestReviewState::Approved => Style::new().fg(GREEN),
+                                            PullRequestReviewState::ChangesRequested => Style::new().fg(YELLOW),
                                             _ => Style::new().fg(Color::Gray),
                                         }),
                                         Span::raw(" "),
@@ -152,6 +194,21 @@ impl PullRequestList {
                     ])
                 })
                 .collect::<Vec<_>>();
+            
+            // Add loading indicator if we're loading more PRs
+            if self.is_loading_more {
+                rows.push(Row::new(vec![
+                    Cell::from(""),
+                    Cell::from("Loading more..."),
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                    Cell::from(""),
+                ]));
+            }
         }
         let mut table_state = TableState::default();
         table_state.select(Some(self.selected_row));
@@ -216,11 +273,31 @@ impl PullRequestList {
     fn refresh(&mut self) {
         let tx = self.command_tx.clone().unwrap();
         if self.username.is_empty() {
-            let _ = self.get_current_user();
+            // Get username and then immediately fetch repos
+            let tx_clone = tx.clone();
             tokio::spawn(async move {
-                // sleep for a second to give the client time to get the username
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                let _ = tx.send(Action::Refresh);
+                match GraphQLGithubClient::get_current_user().await {
+                    Ok(username) => {
+                        if let Err(e) = tx.send(Action::GetCurrentUserResult(username.clone())) {
+                            tracing::error!("Failed to send user result: {}", e);
+                            return;
+                        }
+                        // Immediately fetch repos after getting username
+                        match GraphQLGithubClient::get_pull_requests_paginated(username, 10, None).await {
+                            Ok((pull_requests, has_next_page, end_cursor)) => {
+                                let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
+                            },
+                            Err(err) => {
+                                error!("Error getting pull requests: {:?}", err);
+                                let _ = tx.send(Action::Error(err.to_string()));
+                            },
+                        }
+                    },
+                    Err(err) => {
+                        error!("Error getting current user: {:?}", err);
+                        let _ = tx.send(Action::Error(format!("{:#}", err)));
+                    },
+                }
             });
         } else {
             let _ = self.fetch_repos();
@@ -255,6 +332,14 @@ impl Component for PullRequestList {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        // Always pass certain actions to the overlay if it exists
+        match &action {
+            Action::PullRequestDetailsLoaded(_) | Action::PullRequestDetailsLoadError => {
+                self.info_overlay.update(action.clone())?;
+            },
+            _ => {}
+        }
+        
         if self.show_info_overlay {
             self.info_overlay.update(action.clone())?;
         } else {
@@ -267,8 +352,15 @@ impl Component for PullRequestList {
                 Action::Down => {
                     if let Some(pull_requests) = &self.pull_requests {
                         self.selected_row = std::cmp::min(self.selected_row + 1, pull_requests.len() - 1);
-                        return Ok(Some(Action::Render));
+                        
+                        // Trigger load more when near end (within 5 items) and not already loading
+                        if self.selected_row >= pull_requests.len().saturating_sub(5) 
+                            && self.has_next_page 
+                            && !self.is_loading_more {
+                            let _ = self.load_more_pull_requests();
+                        }
                     }
+                    return Ok(Some(Action::Render));
                 },
                 Action::Left => {
                     self.selected_column = self.selected_column.saturating_sub(1);
@@ -282,7 +374,26 @@ impl Component for PullRequestList {
                     self.refresh();
                 },
                 Action::GetReposResult(pull_requests) => {
+                    // Legacy action - convert to new format
                     self.pull_requests = Some(pull_requests.clone());
+                    self.has_next_page = false; // Legacy mode has no pagination
+                    self.end_cursor = None;
+                    self.is_loading_more = false;
+                },
+                Action::LoadMorePullRequestsResult(new_pull_requests, has_next_page, end_cursor) => {
+                    if let Some(ref mut existing_prs) = self.pull_requests {
+                        // Append new PRs to existing ones
+                        existing_prs.extend(new_pull_requests.clone());
+                        existing_prs.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+                        existing_prs.dedup();
+                    } else {
+                        // First load
+                        self.pull_requests = Some(new_pull_requests.clone());
+                    }
+                    
+                    self.has_next_page = *has_next_page;
+                    self.end_cursor = end_cursor.clone();
+                    self.is_loading_more = false;
                 },
                 Action::Open => {
                     if let Some(pull_requests) = &self.pull_requests {
@@ -306,6 +417,13 @@ impl Component for PullRequestList {
                 if let Some(pull_requests) = &self.pull_requests {
                     if let Some(pr) = pull_requests.get(self.selected_row) {
                         self.info_overlay = PullRequestInfoOverlay::new().with_pull_request(pr.clone());
+                        
+                        // Register the action handler for the overlay
+                        if let Some(tx) = &self.command_tx {
+                            let _ = self.info_overlay.register_action_handler(tx.clone());
+                            let _ = self.info_overlay.register_config_handler(self.config.clone());
+                        }
+                        
                         self.show_info_overlay = !self.show_info_overlay;
                     }
                 }

@@ -38,6 +38,10 @@ pub enum Action {
     GetReposResult(Vec<PullRequest>),
     GetCurrentUserResult(String),
     GetCurrentUser,
+    PullRequestDetailsLoaded(Box<PullRequest>),
+    PullRequestDetailsLoadError,
+    LoadMorePullRequests,
+    LoadMorePullRequestsResult(Vec<PullRequest>, bool, Option<String>),
     Left,
     Right,
 }
