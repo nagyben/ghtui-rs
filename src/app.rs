@@ -32,7 +32,7 @@ pub struct App {
 
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
-        let pr_list = PullRequestList::default();
+        let pr_list = PullRequestList::new();
         let keystrokes = Keystrokes::default();
         let config = Config::new()?;
         let notifications = Notifications::default();

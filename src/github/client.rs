@@ -1,18 +1,18 @@
+use std::sync::OnceLock;
+
 use color_eyre::{
     eyre::{bail, eyre, Error, Report, Result},
     owo_colors::OwoColorize,
 };
 use graphql_client::GraphQLQuery;
+use log::debug;
 use octocrab::Octocrab;
-use tracing::debug;
-use std::sync::OnceLock;
 
 use crate::{
     action::Action,
     components::pull_request::{
-        pull_requests_summary_query, pull_request_detail_query, 
-        PullRequest, PullRequestsSummaryQuery, PullRequestDetailQuery,
-        PullRequestState, PullRequestReview, PullRequestReviewState, PullRequestComment
+        pull_request_detail_query, pull_requests_summary_query, PullRequest, PullRequestComment,
+        PullRequestDetailQuery, PullRequestReview, PullRequestReviewState, PullRequestState, PullRequestsSummaryQuery,
     },
     github::traits::GithubClient,
 };
@@ -53,7 +53,7 @@ impl GithubClient for GraphQLGithubClient {
             let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
             let response: graphql_client::Response<pull_requests_summary_query::ResponseData> = oc
                 .graphql(&PullRequestsSummaryQuery::build_query(pull_requests_summary_query::Variables {
-                    first: 30, 
+                    first: 30,
                     after: None,
                     query: format!("is:pr involves:{} state:open", username),
                 }))
@@ -67,7 +67,7 @@ impl GithubClient for GraphQLGithubClient {
             let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
             let response: graphql_client::Response<pull_requests_summary_query::ResponseData> = oc
                 .graphql(&PullRequestsSummaryQuery::build_query(pull_requests_summary_query::Variables {
-                    first: 30, 
+                    first: 30,
                     after: None,
                     query: format!("is:pr review-requested:{} state:open", username2),
                 }))
@@ -96,9 +96,13 @@ impl GithubClient for GraphQLGithubClient {
             .iter()
             .filter_map(|v| v.as_ref())
             .filter_map(|edge| edge.node.as_ref())
-            .filter_map(|node| match node {
-                pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => Some(pr.into()),
-                _ => None,
+            .filter_map(|node| {
+                match node {
+                    pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => {
+                        Some(pr.into())
+                    },
+                    _ => None,
+                }
             })
             .collect();
 
@@ -106,9 +110,13 @@ impl GithubClient for GraphQLGithubClient {
             .iter()
             .filter_map(|v| v.as_ref())
             .filter_map(|edge| edge.node.as_ref())
-            .filter_map(|node| match node {
-                pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => Some(pr.into()),
-                _ => None,
+            .filter_map(|node| {
+                match node {
+                    pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => {
+                        Some(pr.into())
+                    },
+                    _ => None,
+                }
             })
             .collect();
 
@@ -116,16 +124,18 @@ impl GithubClient for GraphQLGithubClient {
             pull_requests_involves.into_iter().chain(pull_requests_review_requested.into_iter()).collect();
 
         // Optimized deduplication - sort first, then dedup
-        pull_requests.sort_by(|a, b| {
-            a.repository.cmp(&b.repository).then_with(|| a.number.cmp(&b.number))
-        });
+        pull_requests.sort_by(|a, b| a.repository.cmp(&b.repository).then_with(|| a.number.cmp(&b.number)));
         pull_requests.dedup();
 
         debug!("Found {} pull requests", pull_requests.len());
         Ok(pull_requests)
     }
 
-    async fn get_pull_requests_paginated(username: String, first: i32, after: Option<String>) -> Result<(Vec<PullRequest>, bool, Option<String>)> {
+    async fn get_pull_requests_paginated(
+        username: String,
+        first: i32,
+        after: Option<String>,
+    ) -> Result<(Vec<PullRequest>, bool, Option<String>)> {
         debug!("Getting paginated pull requests for {} (first: {}, after: {:?})", username, first, after);
         let username2 = username.clone();
         let after1 = after.clone();
@@ -162,14 +172,8 @@ impl GithubClient for GraphQLGithubClient {
         let pr_involves = t1.await?;
         let pr_review_requested = t2.await?;
 
-        let r1_data = pr_involves
-            .data
-            .ok_or(eyre!("Response data is empty"))?
-            .search;
-        let r2_data = pr_review_requested
-            .data
-            .ok_or(eyre!("Response data is empty"))?
-            .search;
+        let r1_data = pr_involves.data.ok_or(eyre!("Response data is empty"))?.search;
+        let r2_data = pr_review_requested.data.ok_or(eyre!("Response data is empty"))?.search;
 
         let r1 = r1_data.edges.ok_or(eyre!("Search data is empty"))?;
         let r2 = r2_data.edges.ok_or(eyre!("Search data is empty"))?;
@@ -178,9 +182,13 @@ impl GithubClient for GraphQLGithubClient {
             .iter()
             .filter_map(|v| v.as_ref())
             .filter_map(|edge| edge.node.as_ref())
-            .filter_map(|node| match node {
-                pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => Some(pr.into()),
-                _ => None,
+            .filter_map(|node| {
+                match node {
+                    pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => {
+                        Some(pr.into())
+                    },
+                    _ => None,
+                }
             })
             .collect();
 
@@ -188,26 +196,32 @@ impl GithubClient for GraphQLGithubClient {
             .iter()
             .filter_map(|v| v.as_ref())
             .filter_map(|edge| edge.node.as_ref())
-            .filter_map(|node| match node {
-                pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => Some(pr.into()),
-                _ => None,
+            .filter_map(|node| {
+                match node {
+                    pull_requests_summary_query::PullRequestsSummaryQuerySearchEdgesNode::PullRequest(pr) => {
+                        Some(pr.into())
+                    },
+                    _ => None,
+                }
             })
             .collect();
 
         let mut pull_requests: Vec<PullRequest> =
             pull_requests_involves.into_iter().chain(pull_requests_review_requested.into_iter()).collect();
 
-        pull_requests.sort_by(|a, b| {
-            b.updated_at.cmp(&a.updated_at)
-        });
+        pull_requests.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         pull_requests.dedup();
 
         // Get pagination info from the first query (assumes both have similar pagination)
         let has_next_page = r1_data.page_info.has_next_page || r2_data.page_info.has_next_page;
-        let end_cursor = r1_data.page_info.end_cursor.clone()
-                        .or_else(|| r2_data.page_info.end_cursor.clone());
+        let end_cursor = r1_data.page_info.end_cursor.clone().or_else(|| r2_data.page_info.end_cursor.clone());
 
-        debug!("Found {} pull requests (has_next_page: {}, end_cursor: {:?})", pull_requests.len(), has_next_page, end_cursor);
+        debug!(
+            "Found {} pull requests (has_next_page: {}, end_cursor: {:?})",
+            pull_requests.len(),
+            has_next_page,
+            end_cursor
+        );
         Ok((pull_requests, has_next_page, end_cursor))
     }
 
@@ -215,7 +229,7 @@ impl GithubClient for GraphQLGithubClient {
         debug!("Getting detailed PR info for {}/{} #{}", owner, repo, number);
         let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN must be set");
         let oc = Octocrab::builder().personal_token(token).build().expect("Failed to create Octocrab client");
-        
+
         let response: graphql_client::Response<pull_request_detail_query::ResponseData> = oc
             .graphql(&PullRequestDetailQuery::build_query(pull_request_detail_query::Variables {
                 owner,
@@ -258,16 +272,28 @@ impl GithubClient for GraphQLGithubClient {
                 .iter()
                 .filter_map(|edge| edge.as_ref())
                 .filter_map(|edge| edge.node.as_ref())
-                .map(|review| PullRequestReview {
-                    author: review.author.as_ref().map(|a| a.login.clone()).unwrap_or_default(),
-                    state: match review.state {
-                        pull_request_detail_query::PullRequestReviewState::APPROVED => PullRequestReviewState::Approved,
-                        pull_request_detail_query::PullRequestReviewState::CHANGES_REQUESTED => PullRequestReviewState::ChangesRequested,
-                        pull_request_detail_query::PullRequestReviewState::COMMENTED => PullRequestReviewState::Commented,
-                        pull_request_detail_query::PullRequestReviewState::DISMISSED => PullRequestReviewState::Dismissed,
-                        pull_request_detail_query::PullRequestReviewState::PENDING => PullRequestReviewState::Pending,
-                        _ => PullRequestReviewState::Commented,
-                    },
+                .map(|review| {
+                    PullRequestReview {
+                        author: review.author.as_ref().map(|a| a.login.clone()).unwrap_or_default(),
+                        state: match review.state {
+                            pull_request_detail_query::PullRequestReviewState::APPROVED => {
+                                PullRequestReviewState::Approved
+                            },
+                            pull_request_detail_query::PullRequestReviewState::CHANGES_REQUESTED => {
+                                PullRequestReviewState::ChangesRequested
+                            },
+                            pull_request_detail_query::PullRequestReviewState::COMMENTED => {
+                                PullRequestReviewState::Commented
+                            },
+                            pull_request_detail_query::PullRequestReviewState::DISMISSED => {
+                                PullRequestReviewState::Dismissed
+                            },
+                            pull_request_detail_query::PullRequestReviewState::PENDING => {
+                                PullRequestReviewState::Pending
+                            },
+                            _ => PullRequestReviewState::Commented,
+                        },
+                    }
                 })
                 .collect(),
             author: pr_data.author.as_ref().map(|a| a.login.clone()).unwrap_or_default(),
@@ -279,10 +305,12 @@ impl GithubClient for GraphQLGithubClient {
                 .unwrap_or_default()
                 .iter()
                 .filter_map(|comment| comment.as_ref())
-                .map(|comment| PullRequestComment {
-                    author: comment.author.as_ref().map(|a| a.login.clone()).unwrap_or_default(),
-                    body: comment.body.clone(),
-                    created_at: comment.created_at,
+                .map(|comment| {
+                    PullRequestComment {
+                        author: comment.author.as_ref().map(|a| a.login.clone()).unwrap_or_default(),
+                        body: comment.body.clone(),
+                        created_at: comment.created_at,
+                    }
                 })
                 .collect(),
         };

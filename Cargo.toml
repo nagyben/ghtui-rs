@@ -11,8 +11,8 @@ build = "build.rs"
 
 [dependencies]
 better-panic = "0.3.0"
-chrono = "0.4.38"
-clap = { version = "4.4.5", features = [
+chrono = "0.4.42"
+clap = { version = "4.5.47", features = [
   "derive",
   "cargo",
   "wrap_help",
@@ -20,38 +20,38 @@ clap = { version = "4.4.5", features = [
   "string",
   "unstable-styles",
 ] }
-color-eyre = "0.6.2"
-config = "0.14.0"
+color-eyre = "0.6.5"
+config = "0.14.1"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
 derivative = "2.2.0"
 derive_deref = "1.1.1"
 directories = "5.0.1"
-futures = "0.3.28"
+futures = "0.3.31"
 graphql_client = "0.14.0"
-human-panic = "1.2.0"
+human-panic = "1.2.3"
 json5 = "0.4.1"
-lazy_static = "1.4.0"
-libc = "0.2.148"
-log = "0.4.20"
+lazy_static = "1.5.0"
+libc = "0.2.175"
+log = "0.4.28"
 oauth2 = "4.4.2"
 octocrab = "0.38.0"
-open = "5.1.2"
-pretty_assertions = "1.4.0"
-ratatui = { version = "0.26.0", features = ["serde", "macros"] }
-serde = { version = "1.0.188", features = ["derive"] }
-serde_json = "1.0.107"
-signal-hook = "0.3.17"
-strip-ansi-escapes = "0.2.0"
-strum = { version = "0.26.1", features = ["derive"] }
-tokio = { version = "1.32.0", features = ["full"] }
-tokio-util = "0.7.9"
-tracing = "0.1.37"
-tracing-error = "0.2.0"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "serde"] }
+open = "5.3.2"
+pretty_assertions = "1.4.1"
+ratatui = { version = "0.26.3", features = ["serde", "macros"] }
+serde = { version = "1.0.223", features = ["derive"] }
+serde_json = "1.0.145"
+signal-hook = "0.3.18"
+strip-ansi-escapes = "0.2.1"
+strum = { version = "0.26.3", features = ["derive"] }
+tokio = { version = "1.47.1", features = ["full"] }
+tokio-util = "0.7.16"
+tracing = "0.1.41"
+tracing-error = "0.2.1"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "serde"] }
 
 [build-dependencies]
-vergen = { version = "8.2.6", features = ["build", "git", "gitoxide", "cargo"] }
+vergen = { version = "8.3.2", features = ["build", "git", "gitoxide", "cargo"] }
 
 [dev-dependencies]
 rstest = "0.19.0"
-sealed_test = "1.0.0"
+sealed_test = "1.1.0"

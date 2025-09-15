@@ -18,18 +18,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, error_span, info};
 
-use super::{
-    notifications::Notification,
-    pull_request_info_overlay::PullRequestInfoOverlay,
-    utils::centered_rect,
-};
+use super::{notifications::Notification, pull_request_info_overlay::PullRequestInfoOverlay, utils::centered_rect};
 use crate::{
     action::Action,
     colors::{BASE, BLUE, GREEN, LAVENDER, OVERLAY0, PEACH, PINK, RED, ROSEWATER, SURFACE0, TEXT, YELLOW},
     components::{
-        pull_request::{
-            PullRequest, PullRequestReviewState, PullRequestState,
-        },
+        pull_request::{PullRequest, PullRequestReviewState, PullRequestState},
         Component, Frame,
     },
     config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
@@ -54,16 +48,12 @@ pub struct PullRequestList {
     is_loading_more: bool,
     initial_load_size: usize,
     page_size: usize,
+    table_state: TableState,
 }
 
 impl PullRequestList {
     pub fn new() -> Self {
-        Self {
-            initial_load_size: 10,
-            page_size: 20,
-            has_next_page: true,
-            ..Default::default()
-        }
+        Self { initial_load_size: 10, page_size: 20, has_next_page: true, ..Default::default() }
     }
 
     fn get_current_user(&mut self) -> Result<()> {
@@ -71,7 +61,10 @@ impl PullRequestList {
         tx.send(Action::Notify(Notification::Info(String::from("Getting current user..."))))?;
         tokio::spawn(async move {
             match GraphQLGithubClient::get_current_user().await {
-                Ok(username) => tx.send(Action::GetCurrentUserResult(username)),
+                Ok(username) => {
+                    tx.send(Action::Notify(Notification::Info(format!("Got user {username}"))))?;
+                    tx.send(Action::GetCurrentUserResult(username))
+                },
                 Err(err) => {
                     error!("Error getting current user: {:?}", err);
                     tx.send(Action::Error(format!("{:#}", err)))
@@ -86,15 +79,19 @@ impl PullRequestList {
         tx.send(Action::Notify(Notification::Info(String::from("Fetching pull requests..."))))?;
         let username = self.username.clone();
         let initial_load_size = self.initial_load_size as i32;
-        
+
         // Reset pagination state for fresh fetch
         self.has_next_page = true;
         self.end_cursor = None;
         self.is_loading_more = false;
-        
+
         tokio::spawn(async move {
             match GraphQLGithubClient::get_pull_requests_paginated(username, initial_load_size, None).await {
                 Ok((pull_requests, has_next_page, end_cursor)) => {
+                    let _ = tx.send(Action::Notify(Notification::Info(format!(
+                        "Got pull requests: {}",
+                        pull_requests.len()
+                    ))));
                     let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
                 },
                 Err(err) => {
@@ -108,17 +105,19 @@ impl PullRequestList {
 
     fn load_more_pull_requests(&mut self) -> Result<()> {
         if !self.has_next_page || self.is_loading_more {
+            debug!("has next page: {}, is loading more: {}", self.has_next_page, self.is_loading_more);
             return Ok(());
         }
-        
+
+        debug!("Loading more pull requests...");
         let tx = self.command_tx.clone().unwrap();
         tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
         let username = self.username.clone();
         let page_size = self.page_size as i32;
         let after = self.end_cursor.clone();
-        
+
         self.is_loading_more = true;
-        
+
         tokio::spawn(async move {
             match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
                 Ok((pull_requests, has_next_page, end_cursor)) => {
@@ -194,7 +193,7 @@ impl PullRequestList {
                     ])
                 })
                 .collect::<Vec<_>>();
-            
+
             // Add loading indicator if we're loading more PRs
             if self.is_loading_more {
                 rows.push(Row::new(vec![
@@ -210,8 +209,7 @@ impl PullRequestList {
                 ]));
             }
         }
-        let mut table_state = TableState::default();
-        table_state.select(Some(self.selected_row));
+        self.table_state.select(Some(self.selected_row));
         let table = Table::default()
             .widths(Constraint::from_lengths([4, 40, 80, 10, 20, 20, 6, 6, 50]))
             .rows(rows)
@@ -233,7 +231,7 @@ impl PullRequestList {
             .highlight_style(Style::new().bg(SURFACE0).fg(TEXT).add_modifier(Modifier::BOLD))
             .highlight_symbol(">> ");
 
-        f.render_stateful_widget(table, area, &mut table_state);
+        f.render_stateful_widget(table, area, &mut self.table_state);
     }
 
     fn render_placeholder(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
@@ -285,7 +283,11 @@ impl PullRequestList {
                         // Immediately fetch repos after getting username
                         match GraphQLGithubClient::get_pull_requests_paginated(username, 10, None).await {
                             Ok((pull_requests, has_next_page, end_cursor)) => {
-                                let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
+                                let _ = tx.send(Action::LoadMorePullRequestsResult(
+                                    pull_requests,
+                                    has_next_page,
+                                    end_cursor,
+                                ));
                             },
                             Err(err) => {
                                 error!("Error getting pull requests: {:?}", err);
@@ -337,9 +339,9 @@ impl Component for PullRequestList {
             Action::PullRequestDetailsLoaded(_) | Action::PullRequestDetailsLoadError => {
                 self.info_overlay.update(action.clone())?;
             },
-            _ => {}
+            _ => {},
         }
-        
+
         if self.show_info_overlay {
             self.info_overlay.update(action.clone())?;
         } else {
@@ -352,13 +354,6 @@ impl Component for PullRequestList {
                 Action::Down => {
                     if let Some(pull_requests) = &self.pull_requests {
                         self.selected_row = std::cmp::min(self.selected_row + 1, pull_requests.len() - 1);
-                        
-                        // Trigger load more when near end (within 5 items) and not already loading
-                        if self.selected_row >= pull_requests.len().saturating_sub(5) 
-                            && self.has_next_page 
-                            && !self.is_loading_more {
-                            let _ = self.load_more_pull_requests();
-                        }
                     }
                     return Ok(Some(Action::Render));
                 },
@@ -390,10 +385,14 @@ impl Component for PullRequestList {
                         // First load
                         self.pull_requests = Some(new_pull_requests.clone());
                     }
-                    
+
                     self.has_next_page = *has_next_page;
                     self.end_cursor = end_cursor.clone();
                     self.is_loading_more = false;
+
+                    if self.has_next_page {
+                        let _ = self.load_more_pull_requests();
+                    }
                 },
                 Action::Open => {
                     if let Some(pull_requests) = &self.pull_requests {
@@ -417,13 +416,13 @@ impl Component for PullRequestList {
                 if let Some(pull_requests) = &self.pull_requests {
                     if let Some(pr) = pull_requests.get(self.selected_row) {
                         self.info_overlay = PullRequestInfoOverlay::new().with_pull_request(pr.clone());
-                        
+
                         // Register the action handler for the overlay
                         if let Some(tx) = &self.command_tx {
                             let _ = self.info_overlay.register_action_handler(tx.clone());
                             let _ = self.info_overlay.register_config_handler(self.config.clone());
                         }
-                        
+
                         self.show_info_overlay = !self.show_info_overlay;
                     }
                 }
