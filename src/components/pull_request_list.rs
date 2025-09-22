@@ -53,7 +53,13 @@ pub struct PullRequestList {
 
 impl PullRequestList {
     pub fn new() -> Self {
-        Self { initial_load_size: 10, page_size: 20, has_next_page: true, ..Default::default() }
+        Self {
+            initial_load_size: 10,
+            page_size: 20,
+            has_next_page: true,
+            selected_column: 1, // sort by repo by default
+            ..Default::default()
+        }
     }
 
     fn get_current_user(&mut self) -> Result<()> {
@@ -105,7 +111,6 @@ impl PullRequestList {
 
     fn load_more_pull_requests(&mut self) -> Result<()> {
         if !self.has_next_page || self.is_loading_more {
-            debug!("has next page: {}, is loading more: {}", self.has_next_page, self.is_loading_more);
             return Ok(());
         }
 
@@ -157,8 +162,8 @@ impl PullRequestList {
                         Cell::from(pr.repository.clone()),
                         Cell::from(pr.title.clone()),
                         Cell::from(pr.author.clone()),
-                        Cell::from(format!("{}", pr.created_at.format("%Y-%m-%d %H:%M"))),
-                        Cell::from(format!("{}", pr.updated_at.format("%Y-%m-%d %H:%M"))),
+                        Cell::from(format!("{}", pr.created_at.format("%Y-%m-%d"))),
+                        Cell::from(format!("{}", pr.updated_at.format("%Y-%m-%d"))),
                         Cell::from(Line::from(vec![
                             Span::styled(format!("{:+}", pr.additions), Style::new().fg(GREEN)),
                             Span::styled(format!("{:+}", (0 - pr.deletions as isize)), Style::new().fg(RED)),
@@ -211,7 +216,7 @@ impl PullRequestList {
         }
         self.table_state.select(Some(self.selected_row));
         let table = Table::default()
-            .widths(Constraint::from_lengths([4, 40, 80, 10, 20, 20, 6, 6, 50]))
+            .widths(Constraint::from_lengths([4, 40, 80, 10, 12, 12, 6, 6, 50]))
             .rows(rows)
             .column_spacing(1)
             .header(
@@ -393,6 +398,8 @@ impl Component for PullRequestList {
                     if self.has_next_page {
                         let _ = self.load_more_pull_requests();
                     }
+
+                    self.sort_pull_requests();
                 },
                 Action::Open => {
                     if let Some(pull_requests) = &self.pull_requests {
