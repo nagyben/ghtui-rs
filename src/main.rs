@@ -10,6 +10,7 @@ pub mod components;
 pub mod config;
 pub mod github;
 pub mod mode;
+pub mod thing;
 pub mod tui;
 pub mod utils;
 

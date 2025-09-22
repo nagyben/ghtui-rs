@@ -5,18 +5,27 @@ type DateTime = chrono::DateTime<chrono::Utc>;
 use std::fmt::Debug;
 
 use graphql_client::GraphQLQuery;
+use ratatui::{
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Cell, Row},
+};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use self::pull_requests_query::{
-    PullRequestReviewState as PrQueryReviewState, 
-    PullRequestState as PrQueryState, 
-    PullRequestsQuerySearchEdgesNodeOnPullRequest,
+use self::{
+    pull_requests_query::{
+        PullRequestReviewState as PrQueryReviewState, PullRequestState as PrQueryState,
+        PullRequestsQuerySearchEdgesNodeOnPullRequest,
+    },
+    pull_requests_summary_query::{
+        PullRequestReviewState as PrSummaryReviewState, PullRequestState as PrSummaryState,
+        PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest,
+    },
 };
-use self::pull_requests_summary_query::{
-    PullRequestReviewState as PrSummaryReviewState,
-    PullRequestState as PrSummaryState,
-    PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest,
+use crate::{
+    colors::{BLUE, GREEN, RED, YELLOW},
+    thing::Thing,
 };
 
 #[derive(GraphQLQuery)]
@@ -221,7 +230,7 @@ impl From<&PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest> for PullRequest
             created_at: value.created_at,
             updated_at: value.updated_at,
             url: String::new(), // Will be loaded on-demand
-            changed_files: 0, // Will be loaded on-demand
+            changed_files: 0,   // Will be loaded on-demand
             additions: value.additions as usize,
             deletions: value.deletions as usize,
             state: value.state.clone().into(),
@@ -242,8 +251,8 @@ impl From<&PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest> for PullRequest
                 })
                 .collect(),
             base_branch: String::new(), // Will be loaded on-demand
-            body: String::new(), // Will be loaded on-demand  
-            comments: vec![], // Will be loaded on-demand
+            body: String::new(),        // Will be loaded on-demand
+            comments: vec![],           // Will be loaded on-demand
         }
     }
 }
@@ -253,4 +262,48 @@ pub struct PullRequestComment {
     pub author: String,
     pub body: String,
     pub created_at: DateTime,
+}
+
+impl Thing for PullRequest {
+    fn render_row(&self) -> Row<'_> {
+        Row::new(vec![
+            Cell::from(format!("{:}", self.number)),
+            Cell::from(self.repository.clone()),
+            Cell::from(self.title.clone()),
+            Cell::from(self.author.clone()),
+            Cell::from(format!("{}", self.created_at.format("%Y-%m-%d"))),
+            Cell::from(format!("{}", self.updated_at.format("%Y-%m-%d"))),
+            Cell::from(Line::from(vec![
+                Span::styled(format!("{:+}", self.additions), Style::new().fg(GREEN)),
+                Span::styled(format!("{:+}", (0 - self.deletions as isize)), Style::new().fg(RED)),
+            ])),
+            Cell::from(match self.state {
+                PullRequestState::Open => {
+                    if self.is_draft {
+                        "DRAFT"
+                    } else {
+                        "OPEN"
+                    }
+                },
+                PullRequestState::Closed => "CLOSED",
+                PullRequestState::Merged => "MERGED",
+            }),
+            Cell::from(Line::from(
+                self.reviews
+                    .iter()
+                    .flat_map(|prr| {
+                        vec![
+                            Span::styled(prr.author.clone(), match prr.state {
+                                PullRequestReviewState::Commented => Style::new().fg(BLUE),
+                                PullRequestReviewState::Approved => Style::new().fg(GREEN),
+                                PullRequestReviewState::ChangesRequested => Style::new().fg(YELLOW),
+                                _ => Style::new().fg(Color::Gray),
+                            }),
+                            Span::raw(" "),
+                        ]
+                    })
+                    .collect::<Vec<Span>>(),
+            )),
+        ])
+    }
 }

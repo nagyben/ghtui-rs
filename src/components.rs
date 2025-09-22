@@ -14,6 +14,7 @@ pub mod notifications;
 pub mod pull_request;
 pub mod pull_request_info_overlay;
 pub mod pull_request_list;
+pub mod thing_list;
 pub mod utils;
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
