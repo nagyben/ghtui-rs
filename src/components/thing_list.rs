@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 use crossterm::event::{KeyCode, KeyEvent};
 use derivative::Derivative;
@@ -29,7 +31,7 @@ use crate::{
     config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
     github::{client::GraphQLGithubClient, traits::GithubClient},
     mode::Mode,
-    thing::Thing,
+    things::thing::Thing,
 };
 
 #[derive(Default)]
@@ -37,7 +39,7 @@ pub struct ThingList {
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
     selected_row: usize,
-    objects: Option<Vec<Box<dyn Thing>>>,
+    things: Option<Vec<Box<dyn Thing>>>,
     username: String,
     show_info_overlay: bool,
     selected_column: usize,
@@ -67,6 +69,15 @@ impl ThingList {
             .collect()
     }
 
+    pub fn set_things(&mut self, things: Vec<Box<dyn Thing>>) -> Result<()> {
+        self.things = Some(things);
+        Ok(())
+    }
+
+    fn sort_things(&mut self) {
+        todo!()
+    }
+
     fn render_placeholder(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {
         let text = Paragraph::new(
             if let Some(refresh_key) =
@@ -82,37 +93,22 @@ impl ThingList {
         f.render_widget(text, centered_rect(area, 100, 10))
     }
 
-    fn sort_things(&mut self) {
-        todo!()
-    }
-
-    fn refresh(&mut self) {
-        todo!()
-    }
-
     fn render_things(&mut self, f: &mut ratatui::Frame<'_>, area: Rect) {
         let mut rows: Vec<Row> = vec![];
-        if let Some(pull_requests) = &self.objects {
-            rows = pull_requests
+        if let Some(things) = &self.things {
+            rows = things
                 .iter()
                 .map(|pr| {
-                    let h = pr.as_ref().render_row();
+                    let h = pr.as_ref().row();
                     h
                 })
                 .collect::<Vec<_>>();
         }
         self.table_state.select(Some(self.selected_row));
-        let table = Table::default()
+        let mut table = Table::default()
             .widths(Constraint::from_lengths([4, 40, 80, 10, 12, 12, 6, 6, 50]))
             .rows(rows)
             .column_spacing(1)
-            .header(
-                Row::new(ThingList::selected_column(
-                    vec!["#", "Repository", "Title", "Author", "Created", "Updated", "Changes", "State", "Reviews"],
-                    self.selected_column,
-                ))
-                .bottom_margin(1),
-            )
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -122,6 +118,17 @@ impl ThingList {
             )
             .highlight_style(Style::new().bg(SURFACE0).fg(TEXT).add_modifier(Modifier::BOLD))
             .highlight_symbol(">> ");
+
+        if let Some(things) = &self.things {
+            if let Some(first_thing) = things.first() {
+                table = table.header(
+                    Row::new(Self::selected_column(first_thing.header(), self.selected_column))
+                        .style(Style::new().fg(LAVENDER))
+                        .bottom_margin(1)
+                        .bottom_margin(1),
+                );
+            }
+        }
 
         f.render_stateful_widget(table, area, &mut self.table_state);
     }
@@ -147,12 +154,14 @@ impl Component for ThingList {
             Action::Tick => {},
             Action::Up => {
                 self.selected_row = self.selected_row.saturating_sub(1);
+                log::debug!("Selected row: {}", self.selected_row);
                 return Ok(Some(Action::Render));
             },
             Action::Down => {
-                if let Some(things) = &self.objects {
+                if let Some(things) = &self.things {
                     self.selected_row = std::cmp::min(self.selected_row + 1, things.len() - 1);
                 }
+                log::debug!("Selected row: {}", self.selected_row);
                 return Ok(Some(Action::Render));
             },
             Action::Left => {
@@ -163,9 +172,7 @@ impl Component for ThingList {
                 self.selected_column = self.selected_column.saturating_add(1);
                 self.sort_things();
             },
-            Action::Refresh => {
-                self.refresh();
-            },
+            Action::Refresh => {},
             Action::Open => {},
             _ => {},
         }
@@ -176,6 +183,14 @@ impl Component for ThingList {
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()> {
         self.render_things(f, area);
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

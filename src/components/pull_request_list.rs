@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 use crossterm::event::{KeyCode, KeyEvent};
 use derivative::Derivative;
@@ -27,6 +29,7 @@ use crate::{
         Component, Frame,
     },
     config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
+    event::AppEvent,
     github::{client::GraphQLGithubClient, traits::GithubClient},
     mode::Mode,
 };
@@ -34,6 +37,7 @@ use crate::{
 #[derive(Default)]
 pub struct PullRequestList {
     command_tx: Option<UnboundedSender<Action>>,
+    event_tx: Option<UnboundedSender<AppEvent>>,
     config: Config,
     selected_row: usize,
     pull_requests: Option<Vec<PullRequest>>,
@@ -115,8 +119,9 @@ impl PullRequestList {
         }
 
         debug!("Loading more pull requests...");
-        let tx = self.command_tx.clone().unwrap();
-        tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
+        let command_tx = self.command_tx.clone().unwrap();
+        command_tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
+        let event_tx = self.event_tx.clone().unwrap();
         let username = self.username.clone();
         let page_size = self.page_size as i32;
         let after = self.end_cursor.clone();
@@ -126,11 +131,11 @@ impl PullRequestList {
         tokio::spawn(async move {
             match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
                 Ok((pull_requests, has_next_page, end_cursor)) => {
-                    let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
+                    let _ = event_tx.send(AppEvent::ProviderReturnedResult);
                 },
                 Err(err) => {
                     error!("Error loading more pull requests: {:?}", err);
-                    let _ = tx.send(Action::Error(err.to_string()));
+                    let _ = command_tx.send(Action::Error(err.to_string()));
                 },
             }
         });
@@ -333,6 +338,11 @@ impl Component for PullRequestList {
         Ok(())
     }
 
+    fn register_event_handler(&mut self, tx: UnboundedSender<AppEvent>) -> Result<()> {
+        todo!();
+        Ok(())
+    }
+
     fn register_config_handler(&mut self, config: Config) -> Result<()> {
         self.config = config;
         Ok(())
@@ -457,6 +467,14 @@ impl Component for PullRequestList {
         }
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

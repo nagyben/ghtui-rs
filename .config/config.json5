@@ -21,6 +21,7 @@
       "backspace": "Back",
       "<Ctrl-u>": "PageUp",
       "<Ctrl-d>": "PageDn",
+      ":": "EnterCommandMode"
     },
   }
 }

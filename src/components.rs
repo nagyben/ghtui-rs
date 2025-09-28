@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
@@ -6,9 +8,11 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     config::Config,
+    event::AppEvent,
     tui::{Event, Frame},
 };
 
+pub mod command_palette;
 pub mod keystrokes;
 pub mod notifications;
 pub mod pull_request;
@@ -34,6 +38,21 @@ pub trait Component {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         Ok(())
     }
+
+    /// Register an event handler that can send app events for processing if necessary.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - An unbounded sender that can send app events.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<()>` - An Ok result or an error.
+    #[allow(unused_variables)]
+    fn register_event_handler(&mut self, tx: UnboundedSender<AppEvent>) -> Result<()> {
+        Ok(())
+    }
+
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments
@@ -126,4 +145,7 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()>;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }

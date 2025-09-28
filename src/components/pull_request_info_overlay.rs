@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use color_eyre::{eyre::Result, owo_colors::OwoColorize};
 use crossterm::event::{KeyCode, KeyEvent};
 use graphql_client::GraphQLQuery;
@@ -184,6 +186,14 @@ impl Component for PullRequestInfoOverlay {
             f.render_widget(body, layout[2]);
         }
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 #[cfg(test)]

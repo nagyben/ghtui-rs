@@ -4,13 +4,16 @@
 
 pub mod action;
 pub mod app;
+mod circuit_breaker;
 pub mod cli;
 pub mod colors;
 pub mod components;
 pub mod config;
+pub mod event;
 pub mod github;
 pub mod mode;
-pub mod thing;
+pub mod providers;
+pub mod things;
 pub mod tui;
 pub mod utils;
 

@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{any::Any, time::Instant};
 
 use color_eyre::{
     eyre::Result,
@@ -91,5 +91,13 @@ impl Component for Notifications {
             }
         }
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

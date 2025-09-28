@@ -19,7 +19,7 @@ use crate::{
 
 static CACHED_USERNAME: OnceLock<String> = OnceLock::new();
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct GraphQLGithubClient;
 
 impl GithubClient for GraphQLGithubClient {

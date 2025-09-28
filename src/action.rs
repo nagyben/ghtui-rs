@@ -6,9 +6,13 @@ use serde::{
 };
 use strum::Display;
 
-use crate::components::{notifications::Notification, pull_request::PullRequest};
+use crate::{
+    components::{notifications::Notification, pull_request::PullRequest},
+    mode::Mode,
+    things::thing::Thing,
+};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize)]
 pub enum Action {
     Tick,
     Render,
@@ -24,6 +28,8 @@ pub enum Action {
     // custom actions
     Up,
     Down,
+    Left,
+    Right,
     Enter,
     Open,
     Escape,
@@ -42,6 +48,9 @@ pub enum Action {
     PullRequestDetailsLoadError,
     LoadMorePullRequests,
     LoadMorePullRequestsResult(Vec<PullRequest>, bool, Option<String>),
-    Left,
-    Right,
+
+    ChangeMode(Mode),
+    ChangeProvider(usize),
+    EnterCommandMode,
+    ExecuteCommand(String),
 }

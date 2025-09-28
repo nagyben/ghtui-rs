@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{any::Any, time::Instant};
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
@@ -60,5 +60,13 @@ impl Component for Keystrokes {
         self.key_history.push(key);
         self.timer = Instant::now();
         Ok(Some(Action::Render))
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
