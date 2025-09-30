@@ -10,11 +10,11 @@ use octocrab::Octocrab;
 
 use crate::{
     action::Action,
-    components::pull_request::{
+    github::traits::GithubClient,
+    things::pull_request::{
         pull_request_detail_query, pull_requests_summary_query, PullRequest, PullRequestComment,
         PullRequestDetailQuery, PullRequestReview, PullRequestReviewState, PullRequestState, PullRequestsSummaryQuery,
     },
-    github::traits::GithubClient,
 };
 
 static CACHED_USERNAME: OnceLock<String> = OnceLock::new();

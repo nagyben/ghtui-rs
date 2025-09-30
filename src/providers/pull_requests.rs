@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use color_eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 use ratatui::{
     layout::{Alignment, Constraint, Rect},
     style::{Color, Style},
@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Cell, Paragraph, Row, Table},
 };
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use crate::{
     action::Action,
@@ -25,11 +25,11 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct PullRequestProvider {
-    command_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<UnboundedSender<Action>>,
     event_tx: Option<UnboundedSender<AppEvent>>,
     config: Config,
     pull_requests: Vec<PullRequest>,
-    username: String,
+    username: Option<String>,
     client: GraphQLGithubClient,
     // Pagination state
     has_next_page: bool,
@@ -44,46 +44,18 @@ impl PullRequestProvider {
     }
 
     fn get_current_user(&mut self) -> Result<()> {
-        let tx = self.command_tx.clone().unwrap();
-        tx.send(Action::Notify(Notification::Info(String::from("Getting current user..."))))?;
+        let action_tx = self.action_tx.clone().unwrap();
+        let event_tx = self.event_tx.clone().unwrap();
+        action_tx.send(Action::Notify(Notification::Info(String::from("Getting current user..."))))?;
         tokio::spawn(async move {
             match GraphQLGithubClient::get_current_user().await {
                 Ok(username) => {
-                    tx.send(Action::Notify(Notification::Info(format!("Got user {username}"))))?;
-                    tx.send(Action::GetCurrentUserResult(username))
+                    let _ = action_tx.send(Action::Notify(Notification::Info(format!("Got user {username}"))));
+                    let _ = event_tx.send(AppEvent::UserIdentified(username));
                 },
                 Err(err) => {
                     error!("Error getting current user: {:?}", err);
-                    tx.send(Action::Error(format!("{:#}", err)))
-                },
-            }
-        });
-        Ok(())
-    }
-
-    fn fetch_repos(&mut self) -> Result<()> {
-        let tx = self.command_tx.clone().unwrap();
-        tx.send(Action::Notify(Notification::Info(String::from("Fetching pull requests..."))))?;
-        let username = self.username.clone();
-        let initial_load_size = 10;
-
-        // Reset pagination state for fresh fetch
-        self.has_next_page = true;
-        self.end_cursor = None;
-        self.is_loading_more = false;
-
-        tokio::spawn(async move {
-            match GraphQLGithubClient::get_pull_requests_paginated(username, initial_load_size, None).await {
-                Ok((pull_requests, has_next_page, end_cursor)) => {
-                    let _ = tx.send(Action::Notify(Notification::Info(format!(
-                        "Got pull requests: {}",
-                        pull_requests.len()
-                    ))));
-                    let _ = tx.send(Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor));
-                },
-                Err(err) => {
-                    error!("Error getting pull requests: {:?}", err);
-                    let _ = tx.send(Action::Error(err.to_string()));
+                    let _ = action_tx.send(Action::Error(format!("{:#}", err)));
                 },
             }
         });
@@ -95,31 +67,35 @@ impl PullRequestProvider {
             return Ok(());
         }
 
-        debug!("Loading more pull requests...");
-        let command_tx = self.command_tx.clone().unwrap();
-        command_tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
-        let event_tx = self.event_tx.clone().unwrap();
-        let username = self.username.clone();
-        let page_size = self.page_size as i32;
-        let after = self.end_cursor.clone();
+        if let Some(username) = &self.username {
+            debug!("Loading more pull requests...");
+            let command_tx = self.action_tx.clone().unwrap();
+            command_tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
+            let event_tx = self.event_tx.clone().unwrap();
+            let username = username.clone();
+            let page_size = self.page_size as i32;
+            let after = self.end_cursor.clone();
 
-        self.is_loading_more = true;
+            self.is_loading_more = true;
 
-        tokio::spawn(async move {
-            match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
-                Ok((pull_requests, has_next_page, end_cursor)) => {
-                    let _ = event_tx.send(AppEvent::ProviderReturnedResult);
-                },
-                Err(err) => {
-                    error!("Error loading more pull requests: {:?}", err);
-                    let _ = command_tx.send(Action::Error(err.to_string()));
-                },
-            }
-        });
+            tokio::spawn(async move {
+                match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
+                    Ok((pull_requests, has_next_page, end_cursor)) => {
+                        let _ = event_tx.send(AppEvent::ProviderReturnedResult);
+                    },
+                    Err(err) => {
+                        error!("Error loading more pull requests: {:?}", err);
+                        let _ = command_tx.send(Action::Error(err.to_string()));
+                    },
+                }
+            });
+        } else {
+            return Err(eyre!("Username is not set"));
+        }
         Ok(())
     }
 
-    fn selected_column(columns: Vec<&'static str>, selected_column: usize) -> Vec<Cell> {
+    fn selected_column(columns: Vec<&'static str>, selected_column: usize) -> Vec<Cell<'static>> {
         columns
             .iter()
             .enumerate()
@@ -153,40 +129,13 @@ impl PullRequestProvider {
     // }
 
     fn refresh(&mut self) {
-        let tx = self.command_tx.clone().unwrap();
-        if self.username.is_empty() {
-            // Get username and then immediately fetch repos
-            let tx_clone = tx.clone();
-            tokio::spawn(async move {
-                match GraphQLGithubClient::get_current_user().await {
-                    Ok(username) => {
-                        if let Err(e) = tx.send(Action::GetCurrentUserResult(username.clone())) {
-                            tracing::error!("Failed to send user result: {}", e);
-                            return;
-                        }
-                        // Immediately fetch repos after getting username
-                        match GraphQLGithubClient::get_pull_requests_paginated(username, 10, None).await {
-                            Ok((pull_requests, has_next_page, end_cursor)) => {
-                                let _ = tx.send(Action::LoadMorePullRequestsResult(
-                                    pull_requests,
-                                    has_next_page,
-                                    end_cursor,
-                                ));
-                            },
-                            Err(err) => {
-                                error!("Error getting pull requests: {:?}", err);
-                                let _ = tx.send(Action::Error(err.to_string()));
-                            },
-                        }
-                    },
-                    Err(err) => {
-                        error!("Error getting current user: {:?}", err);
-                        let _ = tx.send(Action::Error(format!("{:#}", err)));
-                    },
-                }
-            });
+        trace!("Refreshing pull requests...");
+        let action_tx = self.action_tx.clone().unwrap();
+        let event_tx = self.event_tx.clone().unwrap();
+        if self.username.is_none() {
+            self.get_current_user();
         } else {
-            let _ = self.fetch_repos();
+            self.load_more_pull_requests();
         }
     }
 
@@ -199,19 +148,59 @@ impl PullRequestProvider {
         .alignment(Alignment::Center);
         f.render_widget(text, centered_rect(area, 100, 10));
     }
+
+    pub fn with_action_handler(mut self, tx: UnboundedSender<Action>) -> Self {
+        self.action_tx = Some(tx);
+        self
+    }
+
+    pub fn with_event_handler(mut self, tx: UnboundedSender<AppEvent>) -> Self {
+        self.event_tx = Some(tx);
+        self
+    }
 }
 
 #[async_trait]
 impl Provider for PullRequestProvider {
     async fn provide(&mut self) -> Result<()> {
-        todo!()
+        self.refresh();
+        Ok(())
     }
 
     fn get_things(&self) -> Result<Vec<Box<dyn Thing>>> {
-        todo!()
+        log::debug!("Getting {} things from PullRequestProvider", self.pull_requests.len());
+        Ok(self.pull_requests.iter().map(|thing| Box::new(thing.clone()) as Box<dyn Thing>).collect())
     }
 
     fn commands(&self) -> Vec<&'static str> {
         vec!["pr", "pullrequest", "pull-request", "pull_request"]
+    }
+
+    fn handle_app_event(&mut self, event: AppEvent) -> Result<Option<Action>> {
+        match event {
+            AppEvent::UserIdentified(user) => self.username = Some(user.clone()),
+            _ => {},
+        }
+        Ok(None)
+    }
+
+    fn handle_action(&mut self, action: Action) -> Result<Option<Action>> {
+        match action {
+            Action::LoadMorePullRequests => {
+                self.load_more_pull_requests()?;
+            },
+            Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor) => {
+                debug!("Loaded {} more pull requests", pull_requests.len());
+                self.pull_requests.extend(pull_requests);
+                self.has_next_page = has_next_page;
+                self.end_cursor = end_cursor;
+                self.is_loading_more = false;
+                if let Some(tx) = &self.event_tx {
+                    let _ = tx.send(AppEvent::ProviderReturnedResult);
+                }
+            },
+            _ => {},
+        }
+        Ok(None)
     }
 }

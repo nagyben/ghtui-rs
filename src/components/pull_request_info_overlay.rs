@@ -13,16 +13,13 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
-use super::pull_request::PullRequestState;
 use crate::{
     action::Action,
     colors::{BASE, TEXT},
-    components::{
-        pull_request::{PullRequest, PullRequestReviewState},
-        Component, Frame,
-    },
+    components::{Component, Frame},
     config::{Config, KeyBindings},
     github::{client::GraphQLGithubClient, traits::GithubClient},
+    things::pull_request::{PullRequest, PullRequestState},
 };
 
 #[derive(Default)]

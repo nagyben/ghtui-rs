@@ -15,9 +15,7 @@ use crate::{
 pub mod command_palette;
 pub mod keystrokes;
 pub mod notifications;
-pub mod pull_request;
 pub mod pull_request_info_overlay;
-pub mod pull_request_list;
 pub mod thing_list;
 pub mod utils;
 

@@ -13,7 +13,6 @@ use crate::{
         keystrokes::Keystrokes,
         notifications::{Notification, Notifications},
         pull_request_info_overlay::PullRequestInfoOverlay,
-        pull_request_list::PullRequestList,
         thing_list::ThingList,
         Component,
     },
@@ -51,7 +50,9 @@ impl App {
         let mode = Mode::Normal;
 
         let providers: Vec<Box<dyn Provider>> = vec![
-            // Box::new(PullRequestProvider::new()),
+            Box::new(
+                PullRequestProvider::new().with_action_handler(action_tx.clone()).with_event_handler(event_tx.clone()),
+            ),
             Box::new(RandomProvider::new().with_event_handler(event_tx.clone())),
         ];
 
@@ -142,8 +143,14 @@ impl App {
                         self.get_thing_list().set_things(things)?;
                         action_tx.send(Action::Render)?;
                     },
-                    AppEvent::ProviderError(err) => action_tx.send(Action::Error(err))?,
+                    AppEvent::ProviderError(ref err) => action_tx.send(Action::Error(err.clone()))?,
                     _ => {},
+                }
+
+                for provider in self.providers.iter_mut() {
+                    if let Some(action) = provider.handle_app_event(event.clone())? {
+                        action_tx.send(action)?
+                    };
                 }
             }
 
@@ -228,6 +235,11 @@ impl App {
                 }
                 for component in self.components.iter_mut() {
                     if let Some(action) = component.update(action.clone())? {
+                        action_tx.send(action)?
+                    };
+                }
+                for provider in self.providers.iter_mut() {
+                    if let Some(action) = provider.handle_action(action.clone())? {
                         action_tx.send(action)?
                     };
                 }

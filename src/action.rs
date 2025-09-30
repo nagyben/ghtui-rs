@@ -7,9 +7,9 @@ use serde::{
 use strum::Display;
 
 use crate::{
-    components::{notifications::Notification, pull_request::PullRequest},
+    components::notifications::Notification,
     mode::Mode,
-    things::thing::Thing,
+    things::{pull_request::PullRequest, thing::Thing},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Deserialize, Serialize)]
@@ -42,7 +42,6 @@ pub enum Action {
     // custom actions for fetching data
     GetRepos,
     GetReposResult(Vec<PullRequest>),
-    GetCurrentUserResult(String),
     GetCurrentUser,
     PullRequestDetailsLoaded(Box<PullRequest>),
     PullRequestDetailsLoadError,

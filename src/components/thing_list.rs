@@ -24,10 +24,7 @@ use super::{notifications::Notification, pull_request_info_overlay::PullRequestI
 use crate::{
     action::Action,
     colors::{BASE, BLUE, GREEN, LAVENDER, OVERLAY0, PEACH, PINK, RED, ROSEWATER, SURFACE0, TEXT, YELLOW},
-    components::{
-        pull_request::{PullRequest, PullRequestReviewState, PullRequestState},
-        Component, Frame,
-    },
+    components::{Component, Frame},
     config::{get_keybinding_for_action, key_event_to_string, Config, KeyBindings},
     github::{client::GraphQLGithubClient, traits::GithubClient},
     mode::Mode,

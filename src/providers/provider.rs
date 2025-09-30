@@ -18,4 +18,12 @@ pub trait Provider: Debug {
     }
 
     fn commands(&self) -> Vec<&'static str>;
+
+    fn handle_action(&mut self, action: Action) -> Result<Option<Action>> {
+        Ok(None)
+    }
+
+    fn handle_app_event(&mut self, event: AppEvent) -> Result<Option<Action>> {
+        Ok(None)
+    }
 }
