@@ -74,16 +74,17 @@ pub struct PullRequest {
     pub base_branch: String,
     pub body: String,
     pub comments: Vec<PullRequestComment>,
+    pub uuid: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, strum::Display)]
 pub enum PullRequestState {
     Open,
     Closed,
     Merged,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, strum::Display)]
 pub enum PullRequestReviewState {
     Approved,
     ChangesRequested,
@@ -217,6 +218,7 @@ impl From<&PullRequestsQuerySearchEdgesNodeOnPullRequest> for PullRequest {
             base_branch: value.base_ref_name.clone(),
             body: value.body.clone(),
             comments: vec![],
+            uuid: uuid::Uuid::new_v4(),
         }
     }
 }
@@ -254,6 +256,7 @@ impl From<&PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest> for PullRequest
             base_branch: String::new(), // Will be loaded on-demand
             body: String::new(),        // Will be loaded on-demand
             comments: vec![],           // Will be loaded on-demand
+            uuid: uuid::Uuid::new_v4(),
         }
     }
 }
@@ -314,5 +317,31 @@ impl Thing for PullRequest {
 
     fn header(&self) -> Vec<&'static str> {
         vec!["#", "Repository", "Title", "Author", "Created", "Updated", "Changes", "State", "Reviews"]
+    }
+
+    fn cmp_by_column_index(&self, other: &dyn Thing, index: usize) -> std::cmp::Ordering {
+        if let Some(other) = other.as_any().downcast_ref::<PullRequest>() {
+            match index {
+                0 => self.number.cmp(&other.number),
+                1 => self.repository.cmp(&other.repository),
+                2 => self.title.cmp(&other.title),
+                3 => self.author.cmp(&other.author),
+                4 => self.created_at.cmp(&other.created_at),
+                5 => self.updated_at.cmp(&other.updated_at),
+                6 => (self.additions + self.deletions).cmp(&(other.additions + other.deletions)),
+                7 => self.state.cmp(&other.state),
+                _ => self.title.cmp(&other.title),
+            }
+        } else {
+            panic!("Cannot compare PullRequest with different Thing type")
+        }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get_uuid(&self) -> uuid::Uuid {
+        self.uuid
     }
 }

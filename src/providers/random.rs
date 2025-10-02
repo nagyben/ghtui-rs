@@ -8,8 +8,10 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{event::AppEvent, providers::provider::Provider, things::thing::Thing};
 
-#[derive(Clone, Debug)]
-struct Random {}
+#[derive(Clone, Debug, Default)]
+struct Random {
+    pub uuid: uuid::Uuid,
+}
 
 impl Thing for Random {
     fn row(&self) -> ratatui::widgets::Row<'_> {
@@ -22,6 +24,18 @@ impl Thing for Random {
 
     fn details(&self) -> Option<crate::action::Action> {
         None
+    }
+
+    fn cmp_by_column_index(&self, other: &dyn Thing, index: usize) -> std::cmp::Ordering {
+        todo!()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get_uuid(&self) -> uuid::Uuid {
+        self.uuid
     }
 }
 
@@ -45,7 +59,7 @@ impl RandomProvider {
 impl Provider for RandomProvider {
     async fn provide(&mut self) -> Result<()> {
         log::debug!("Refreshing RandomProvider");
-        self.things = vec![Random {}, Random {}, Random {}];
+        self.things = vec![Random::default(), Random::default(), Random::default()];
 
         if let Some(tx) = &self.tx {
             let _ = tx.send(AppEvent::ProviderReturnedResult);

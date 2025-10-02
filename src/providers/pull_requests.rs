@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use async_trait::async_trait;
 use color_eyre::{eyre::eyre, Result};
 use ratatui::{
@@ -28,19 +30,15 @@ pub struct PullRequestProvider {
     action_tx: Option<UnboundedSender<Action>>,
     event_tx: Option<UnboundedSender<AppEvent>>,
     config: Config,
-    pull_requests: Vec<PullRequest>,
+    pull_requests: Arc<Mutex<Vec<PullRequest>>>,
     username: Option<String>,
     client: GraphQLGithubClient,
-    // Pagination state
-    has_next_page: bool,
-    end_cursor: Option<String>,
-    is_loading_more: bool,
     page_size: usize,
 }
 
 impl PullRequestProvider {
     pub fn new() -> Self {
-        Self { page_size: 20, has_next_page: true, pull_requests: Vec::new(), ..Default::default() }
+        Self { page_size: 20, pull_requests: Arc::new(Mutex::new(Vec::new())), ..Default::default() }
     }
 
     fn get_current_user(&mut self) -> Result<()> {
@@ -62,36 +60,50 @@ impl PullRequestProvider {
         Ok(())
     }
 
-    fn load_more_pull_requests(&mut self) -> Result<()> {
-        if !self.has_next_page || self.is_loading_more {
-            return Ok(());
+    async fn load_all_pull_requests(
+        username: String,
+        pull_requests: Arc<Mutex<Vec<PullRequest>>>,
+        page_size: usize,
+        action_tx: Option<UnboundedSender<Action>>,
+        event_tx: Option<UnboundedSender<AppEvent>>,
+    ) -> Result<()> {
+        let mut has_next_page = true;
+        let mut end_cursor: Option<String> = None;
+
+        while has_next_page {
+            if let Some(tx) = &action_tx {
+                let _ = tx.send(Action::Notify(Notification::Info("Loading pull requests...".to_string())));
+            }
+            match GraphQLGithubClient::get_pull_requests_paginated(
+                username.clone(),
+                page_size as i32,
+                end_cursor.clone(),
+            )
+            .await
+            {
+                Ok((new_pull_requests, next_page, cursor)) => {
+                    if let Ok(mut prs) = pull_requests.lock() {
+                        prs.extend(new_pull_requests);
+                    }
+
+                    // Emit event after each page so UI updates incrementally
+                    if let Some(tx) = &event_tx {
+                        let _ = tx.send(AppEvent::ProviderReturnedResult);
+                    }
+
+                    has_next_page = next_page;
+                    end_cursor = cursor;
+                },
+                Err(err) => {
+                    error!("Error loading pull requests: {:?}", err);
+                    if let Some(tx) = &action_tx {
+                        let _ = tx.send(Action::Error(err.to_string()));
+                    }
+                    break;
+                },
+            }
         }
 
-        if let Some(username) = &self.username {
-            debug!("Loading more pull requests...");
-            let command_tx = self.action_tx.clone().unwrap();
-            command_tx.send(Action::Notify(Notification::Info(String::from("Loading more pull requests..."))))?;
-            let event_tx = self.event_tx.clone().unwrap();
-            let username = username.clone();
-            let page_size = self.page_size as i32;
-            let after = self.end_cursor.clone();
-
-            self.is_loading_more = true;
-
-            tokio::spawn(async move {
-                match GraphQLGithubClient::get_pull_requests_paginated(username, page_size, after).await {
-                    Ok((pull_requests, has_next_page, end_cursor)) => {
-                        let _ = event_tx.send(AppEvent::ProviderReturnedResult);
-                    },
-                    Err(err) => {
-                        error!("Error loading more pull requests: {:?}", err);
-                        let _ = command_tx.send(Action::Error(err.to_string()));
-                    },
-                }
-            });
-        } else {
-            return Err(eyre!("Username is not set"));
-        }
         Ok(())
     }
 
@@ -130,12 +142,19 @@ impl PullRequestProvider {
 
     fn refresh(&mut self) {
         trace!("Refreshing pull requests...");
-        let action_tx = self.action_tx.clone().unwrap();
-        let event_tx = self.event_tx.clone().unwrap();
+
         if self.username.is_none() {
             self.get_current_user();
-        } else {
-            self.load_more_pull_requests();
+        } else if let Some(username) = &self.username {
+            let username = username.clone();
+            let pull_requests = Arc::clone(&self.pull_requests);
+            let page_size = self.page_size;
+            let action_tx = self.action_tx.clone();
+            let event_tx = self.event_tx.clone();
+
+            tokio::spawn(async move {
+                let _ = Self::load_all_pull_requests(username, pull_requests, page_size, action_tx, event_tx).await;
+            });
         }
     }
 
@@ -168,8 +187,9 @@ impl Provider for PullRequestProvider {
     }
 
     fn get_things(&self) -> Result<Vec<Box<dyn Thing>>> {
-        log::debug!("Getting {} things from PullRequestProvider", self.pull_requests.len());
-        Ok(self.pull_requests.iter().map(|thing| Box::new(thing.clone()) as Box<dyn Thing>).collect())
+        let pull_requests = self.pull_requests.lock().unwrap();
+        log::debug!("Getting {} things from PullRequestProvider", pull_requests.len());
+        Ok(pull_requests.iter().map(|thing| Box::new(thing.clone()) as Box<dyn Thing>).collect())
     }
 
     fn commands(&self) -> Vec<&'static str> {
@@ -186,19 +206,6 @@ impl Provider for PullRequestProvider {
 
     fn handle_action(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::LoadMorePullRequests => {
-                self.load_more_pull_requests()?;
-            },
-            Action::LoadMorePullRequestsResult(pull_requests, has_next_page, end_cursor) => {
-                debug!("Loaded {} more pull requests", pull_requests.len());
-                self.pull_requests.extend(pull_requests);
-                self.has_next_page = has_next_page;
-                self.end_cursor = end_cursor;
-                self.is_loading_more = false;
-                if let Some(tx) = &self.event_tx {
-                    let _ = tx.send(AppEvent::ProviderReturnedResult);
-                }
-            },
             _ => {},
         }
         Ok(None)

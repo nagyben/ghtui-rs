@@ -40,7 +40,6 @@ pub struct ThingList {
     username: String,
     show_info_overlay: bool,
     selected_column: usize,
-    // Pagination state
     table_state: TableState,
 }
 
@@ -68,11 +67,14 @@ impl ThingList {
 
     pub fn set_things(&mut self, things: Vec<Box<dyn Thing>>) -> Result<()> {
         self.things = Some(things);
+        self.sort_things();
         Ok(())
     }
 
     fn sort_things(&mut self) {
-        todo!()
+        if let Some(ref mut things) = self.things {
+            things.sort_by(|a, b| a.cmp_by_column_index(b.as_ref(), self.selected_column))
+        }
     }
 
     fn render_placeholder(&self, f: &mut ratatui::prelude::Frame<'_>, area: Rect) {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     time::{Duration, Instant},
 };
 
@@ -13,15 +13,39 @@ const WINDOW_DURATION: Duration = Duration::from_secs(2);
 
 pub struct CircuitBreaker {
     action_timestamps: HashMap<String, VecDeque<Instant>>,
+    excluded_actions: HashSet<String>,
 }
 
 impl CircuitBreaker {
     pub fn new() -> Self {
-        Self { action_timestamps: HashMap::new() }
+        let excluded_actions = HashSet::from([
+            Action::Render.to_string(),
+            Action::Tick.to_string(),
+            Action::Up.to_string(),
+            Action::Down.to_string(),
+            Action::Left.to_string(),
+            Action::Right.to_string(),
+        ]);
+
+        Self { action_timestamps: HashMap::new(), excluded_actions }
+    }
+
+    pub fn exclude_action(&mut self, action: Action) {
+        self.excluded_actions.insert(action.to_string());
+    }
+
+    pub fn include_action(&mut self, action: Action) {
+        self.excluded_actions.remove(&action.to_string());
     }
 
     pub fn check_action(&mut self, action: &Action) {
         let action_key: String = action.to_string();
+
+        // Skip checking if this action is excluded
+        if self.excluded_actions.contains(&action_key) {
+            return;
+        }
+
         let now = Instant::now();
 
         // Clean up old timestamps outside the window

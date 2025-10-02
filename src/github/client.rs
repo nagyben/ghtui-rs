@@ -313,6 +313,7 @@ impl GithubClient for GraphQLGithubClient {
                     }
                 })
                 .collect(),
+            uuid: uuid::Uuid::new_v4(),
         };
 
         Ok(pull_request)
