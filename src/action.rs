@@ -6,7 +6,10 @@ use serde::{
 };
 use strum::Display;
 
-use crate::components::{notifications::Notification, pull_request::PullRequest};
+use crate::{
+    components::{notifications::Notification, pull_request::PullRequest},
+    mode::Mode,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
 pub enum Action {
@@ -33,6 +36,9 @@ pub enum Action {
     Sort(usize),
     Notify(Notification),
 
+    OpenCommandPalette,
+    OpenSearchPalette,
+
     // custom actions for fetching data
     GetRepos,
     GetReposResult(Vec<PullRequest>),
@@ -44,4 +50,7 @@ pub enum Action {
     LoadMorePullRequestsResult(Vec<PullRequest>, bool, Option<String>),
     Left,
     Right,
+    ChangeMode(Mode),
+    ExecuteCommand(String),
+    ExecuteSearch(String),
 }

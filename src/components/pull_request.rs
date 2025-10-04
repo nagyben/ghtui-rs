@@ -9,13 +9,11 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use self::pull_requests_query::{
-    PullRequestReviewState as PrQueryReviewState, 
-    PullRequestState as PrQueryState, 
+    PullRequestReviewState as PrQueryReviewState, PullRequestState as PrQueryState,
     PullRequestsQuerySearchEdgesNodeOnPullRequest,
 };
 use self::pull_requests_summary_query::{
-    PullRequestReviewState as PrSummaryReviewState,
-    PullRequestState as PrSummaryState,
+    PullRequestReviewState as PrSummaryReviewState, PullRequestState as PrSummaryState,
     PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest,
 };
 
@@ -46,7 +44,7 @@ pub struct PullRequestsSummaryQuery;
 )]
 pub struct PullRequestDetailQuery;
 
-#[derive(Clone, Serialize, Deserialize, Eq)]
+#[derive(Clone, Serialize, Deserialize, Eq, Default)]
 pub struct PullRequest {
     pub number: usize,
     pub title: String,
@@ -65,20 +63,29 @@ pub struct PullRequest {
     pub body: String,
     pub comments: Vec<PullRequestComment>,
 }
+impl PullRequest {
+    pub(crate) fn filter(&self, search_string: &str) -> bool {
+        self.title.contains(search_string)
+            || self.author.contains(search_string)
+            || self.repository.contains(search_string)
+    }
+}
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum PullRequestState {
+    #[default]
     Open,
     Closed,
     Merged,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum PullRequestReviewState {
     Approved,
     ChangesRequested,
     Commented,
     Dismissed,
+    #[default]
     Pending,
 }
 
@@ -132,8 +139,6 @@ impl From<PrSummaryReviewState> for PullRequestReviewState {
 
 impl PartialEq for PullRequest {
     fn eq(&self, other: &Self) -> bool {
-        debug!("{:?} == {:?}", self.number, other.number);
-        debug!("{:?} == {:?}", self.repository, other.repository);
         self.number == other.number && self.repository == other.repository
     }
 }
@@ -196,11 +201,9 @@ impl From<&PullRequestsQuerySearchEdgesNodeOnPullRequest> for PullRequest {
                 .as_ref()
                 .unwrap()
                 .iter()
-                .map(|v| {
-                    PullRequestReview {
-                        author: v.as_ref().unwrap().node.as_ref().unwrap().author.as_ref().unwrap().login.clone(),
-                        state: v.as_ref().unwrap().node.as_ref().unwrap().state.clone().into(),
-                    }
+                .map(|v| PullRequestReview {
+                    author: v.as_ref().unwrap().node.as_ref().unwrap().author.as_ref().unwrap().login.clone(),
+                    state: v.as_ref().unwrap().node.as_ref().unwrap().state.clone().into(),
                 })
                 .collect(),
 
@@ -221,7 +224,7 @@ impl From<&PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest> for PullRequest
             created_at: value.created_at,
             updated_at: value.updated_at,
             url: String::new(), // Will be loaded on-demand
-            changed_files: 0, // Will be loaded on-demand
+            changed_files: 0,   // Will be loaded on-demand
             additions: value.additions as usize,
             deletions: value.deletions as usize,
             state: value.state.clone().into(),
@@ -234,16 +237,14 @@ impl From<&PullRequestsSummaryQuerySearchEdgesNodeOnPullRequest> for PullRequest
                 .as_ref()
                 .unwrap()
                 .iter()
-                .map(|v| {
-                    PullRequestReview {
-                        author: v.as_ref().unwrap().node.as_ref().unwrap().author.as_ref().unwrap().login.clone(),
-                        state: v.as_ref().unwrap().node.as_ref().unwrap().state.clone().into(),
-                    }
+                .map(|v| PullRequestReview {
+                    author: v.as_ref().unwrap().node.as_ref().unwrap().author.as_ref().unwrap().login.clone(),
+                    state: v.as_ref().unwrap().node.as_ref().unwrap().state.clone().into(),
                 })
                 .collect(),
             base_branch: String::new(), // Will be loaded on-demand
-            body: String::new(), // Will be loaded on-demand  
-            comments: vec![], // Will be loaded on-demand
+            body: String::new(),        // Will be loaded on-demand
+            comments: vec![],           // Will be loaded on-demand
         }
     }
 }

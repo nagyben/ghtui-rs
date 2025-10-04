@@ -8,10 +8,13 @@ pub mod cli;
 pub mod colors;
 pub mod components;
 pub mod config;
+pub mod event;
 pub mod github;
 pub mod mode;
 pub mod tui;
 pub mod utils;
+
+pub mod circuit_breaker;
 
 use clap::Parser;
 use cli::Cli;
@@ -28,6 +31,7 @@ async fn tokio_main() -> Result<()> {
     initialize_panic_handler()?;
 
     let args = Cli::parse();
+
     let mut app = App::new(args.tick_rate, args.frame_rate)?;
     app.run().await?;
 

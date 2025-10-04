@@ -6,9 +6,11 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     config::Config,
+    event::AppEvent,
     tui::{Event, Frame},
 };
 
+pub mod command_palette;
 pub mod keystrokes;
 pub mod notifications;
 pub mod pull_request;
@@ -33,6 +35,12 @@ pub trait Component {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         Ok(())
     }
+
+    #[allow(unused_variables)]
+    fn register_event_handler(&mut self, tx: UnboundedSender<AppEvent>) -> Result<()> {
+        Ok(())
+    }
+
     /// Register a configuration handler that provides configuration settings if necessary.
     ///
     /// # Arguments
@@ -75,6 +83,10 @@ pub trait Component {
         };
         Ok(r)
     }
+
+    fn handle_app_event(&mut self, event: AppEvent) -> Result<()> {
+        Ok(())
+    }
     /// Handle key events and produce actions if necessary.
     ///
     /// # Arguments
@@ -111,8 +123,8 @@ pub trait Component {
     ///
     /// * `Result<Option<Action>>` - An action to be processed or none.
     #[allow(unused_variables)]
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        Ok(None)
+    fn handle_action(&mut self, action: Action) -> Result<()> {
+        Ok(())
     }
     /// Render the component on the screen. (REQUIRED)
     ///
@@ -125,4 +137,9 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, f: &mut Frame<'_>, area: Rect) -> Result<()>;
+
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
+    fn is_active(&self) -> bool;
 }

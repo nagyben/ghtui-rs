@@ -41,11 +41,11 @@ impl Keystrokes {
 }
 
 impl Component for Keystrokes {
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn handle_action(&mut self, action: Action) -> Result<()> {
         if let Action::Tick = action {
             self.app_tick()?
         };
-        Ok(None)
+        Ok(())
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
@@ -60,5 +60,17 @@ impl Component for Keystrokes {
         self.key_history.push(key);
         self.timer = Instant::now();
         Ok(Some(Action::Render))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn is_active(&self) -> bool {
+        true
     }
 }

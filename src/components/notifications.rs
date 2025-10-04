@@ -7,7 +7,7 @@ use color_eyre::{
 use ratatui::{prelude::*, widgets::*};
 use serde::{Deserialize, Serialize};
 use strum::Display;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use super::Component;
 use crate::{
@@ -45,16 +45,17 @@ impl Notifications {
 }
 
 impl Component for Notifications {
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn handle_action(&mut self, action: Action) -> Result<()> {
         match action {
             Action::Tick => self.app_tick()?,
             Action::Render => self.render_tick()?,
             Action::Notify(notification) => {
+                trace!("Notifyiong: {:?}", notification);
                 self.notifications.push((notification, Instant::now()));
             },
             _ => (),
         };
-        Ok(None)
+        Ok(())
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
@@ -91,5 +92,17 @@ impl Component for Notifications {
             }
         }
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn is_active(&self) -> bool {
+        true
     }
 }
